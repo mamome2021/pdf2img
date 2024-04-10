@@ -61,7 +61,7 @@ def remove_path_fill(doc, page):
         ref = page.get_contents()[0]
     stream = doc.xref_stream(ref)
     stream_split = stream.split(f'/{image_name} Do\n'.encode(), 1)
-    stream_split[0] = stream_split[0].replace(b'\nf\n', b'\nn\n')
+    stream_split[0] = stream_split[0].replace(b'\nf\n', b'\nn\n').replace(b'\nf*\n', b'\nn\n')
     doc.update_stream(ref, f'/{image_name} Do\n'.encode().join(stream_split))
 
 def find_largest_image(images):
