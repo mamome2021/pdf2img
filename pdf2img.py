@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第5版
+#第6版
 import sys
 import os
 import traceback
@@ -11,6 +11,7 @@ import math
 def read_config():
     config = {'error': False,
               'single-image': False,
+              'no-crop': False,
               'prefer-png': False,
               'tiff-compression': 'packbits'}
     try:
@@ -24,6 +25,8 @@ def read_config():
                 config['error'] = True
             elif option[0] == 'single-image':
                 config['single-image'] = True
+            elif option[0] == 'no-crop':
+                config['no-crop'] = True
             elif option[0] == 'prefer-png':
                 config['prefer-png'] = True
             elif option[0] == 'tiff-compression':
@@ -97,13 +100,24 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
             print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
         zoom = width / image_matrix[0]
         img_noimg = render_image(page_noimg, width / image_matrix[0])
-        img_merge = Image.new(pil_image.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
-        img_merge.paste(pil_image, (round(image_matrix[4]*zoom), round(image_matrix[5]*zoom)))
-        img_merge.paste(img_noimg, (0, 0), img_noimg)
+        if not config['no-crop']:
+            img_merge = Image.new(pil_image.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
+            img_merge.paste(pil_image, (round(image_matrix[4] * zoom), round(image_matrix[5] * zoom)))
+            img_merge.paste(img_noimg, (0, 0), img_noimg)
+        else:
+            image_rect = page.get_image_rects(img_xref)[0]
+            width_merge = max(page.rect[2], image_rect[2]) - min(page.rect[0], image_rect[0])
+            height_merge = max(page.rect[3], image_rect[3]) - min(page.rect[1], image_rect[1])
+            x_offset = min(image_rect[0], 0)
+            y_offset = min(image_rect[1], 0)
+            img_merge = Image.new(pil_image.mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
+            img_merge.paste(pil_image, (round(max(image_matrix[4], 0) * zoom), round(max(image_matrix[5], 0) * zoom)))
+            img_merge.paste(img_noimg, (round(-x_offset * zoom), round(-y_offset * zoom)), img_noimg)
+            
         return img_merge, output_name
     except Exception as e:
         print(traceback.format_exc())
-        if args.error:
+        if config['error']:
             exit(1)
 
 def main():
