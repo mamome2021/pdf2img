@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第8版
+#第9版
 import sys
 import os
 import traceback
@@ -7,11 +7,13 @@ import fitz
 from PIL import Image
 from io import BytesIO
 import math
+import numpy
 
 def read_config():
     config = {'error': False,
               'single-image': False,
               'no-crop': False,
+              'fix-opaque': False,
               'prefer-mono': False,
               'prefer-png': False,
               'tiff-compression': 'packbits'}
@@ -29,6 +31,8 @@ def read_config():
                 config['single-image'] = True
             elif option[0] == 'no-crop':
                 config['no-crop'] = True
+            elif option[0] == 'fix-opaque':
+                config['fix-opaque'] = True
             elif option[0] == 'prefer-mono':
                 config['prefer-mono'] = True
             elif option[0] == 'prefer-png':
@@ -50,12 +54,18 @@ def find_largest_image(images):
             index = i
     return images[index]
 
-def render_image(page, zoom, colorspace='GRAY', alpha=True):
+def render_image(config, page, zoom, colorspace='GRAY', alpha=True):
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
     if not alpha:
         return Image.frombytes('L', [pixmap.width, pixmap.height], pixmap.samples)
     image = Image.frombytes('La', [pixmap.width, pixmap.height], pixmap.samples)
     image = image.convert('LA')
+    if config['fix-opaque']:
+        g, a = image.split()
+        garr = numpy.array(g)
+        aarr = numpy.array(a)
+        newarr = numpy.where(garr==255, numpy.zeros_like(aarr), aarr)
+        image = Image.merge('LA', (g, Image.fromarray(newarr)))
     return image
 
 def generate_image(config, doc, page, page_noimg, image, output_dir):
@@ -68,12 +78,17 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
         is_mono = False
         output_name=f"{output_dir}/{page.number+1}-{img_xref}"
         if doc.xref_get_key(img_xref, "Filter")[1] == '/DCTDecode':
-            print(output_name, "jpeg")
-            pil_image = Image.open(BytesIO(doc.xref_stream_raw(img_xref)))
+            if cs == "/DeviceCMYK":
+                print(output_name, "jpeg-cmyk")
+                pixmap = fitz.Pixmap(doc, img_xref)
+                pil_image = Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples)
+            else:
+                print(output_name, "jpeg")
+                pil_image = Image.open(BytesIO(doc.xref_stream_raw(img_xref)))
         elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true' or doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
             print(output_name, "mono")
             is_mono = True
-            pil_image = Image.frombytes('1', (width,height), doc.xref_stream(img_xref))
+            pil_image = Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
             pil_image = pil_image.convert('L')
         elif cs_type == 'xref':
             print(output_name, "xref cs")
@@ -100,7 +115,7 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
         if image_matrix[1:3] != (0, 0):
             print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
         zoom = width / image_matrix[0]
-        img_noimg = render_image(page_noimg, width / image_matrix[0])
+        img_noimg = render_image(config, page_noimg, width / image_matrix[0])
         if not config['no-crop']:
             img_merge = Image.new(pil_image.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
             img_merge.paste(pil_image, (round(image_matrix[4] * zoom), round(image_matrix[5] * zoom)))
@@ -142,7 +157,7 @@ def main():
             images = page.get_images()
             if not images:
                 print(f'警告：第{pagenum+1}頁沒有圖片，使用600dpi渲染')
-                image = render_image(page, 600 / 72, alpha=False)
+                image = render_image(config, page, 600 / 72, alpha=False)
                 if config['prefer-png'] == True:
                     image.save(f"{output_dir}/{pagenum+1}.png")
                 else:
