@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#第11版
 import sys
 import os
 import traceback
@@ -57,6 +56,9 @@ def remove_path_fill(doc, page):
     image = images[0]
     image_name = image[7]
     ref = image[9]
+    if ref == 0:
+        # Image is directly referenced by the page
+        ref = page.get_contents()[0]
     stream = doc.xref_stream(ref)
     stream_split = stream.split(f'/{image_name} Do\n'.encode(), 1)
     stream_split[0] = stream_split[0].replace(b'\nf\n', b'\nn\n')
