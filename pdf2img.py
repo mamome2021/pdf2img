@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第1版
+#第2版
 import argparse
 import sys
 import os
@@ -22,7 +22,7 @@ for file in args.input:
         for image in page.get_images():
             xref = image[0]
             page.delete_image(xref)
-    doc_noimg = fitz.open('pdf', doc_noimg.tobytes())
+    doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
     output_dir = file + "-img"
     os.makedirs(output_dir, exist_ok=True)
 
