@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第3版
+#第4版
 import argparse
 import sys
 import os
@@ -8,15 +8,12 @@ import fitz
 from PIL import Image
 from io import BytesIO
 import math
-import numpy
 
 def fix_transparent_area(img):
-    g,a = img.split()
-    garr = numpy.array(g, dtype=numpy.uint32)
-    aarr = numpy.array(a, dtype=numpy.uint32)
-    garr *= 255
-    garr = numpy.floor_divide(garr, aarr, where=aarr!=0, out=numpy.zeros_like(garr))
-    return Image.merge('LA', (Image.fromarray(numpy.uint8(garr)), a))
+    g, a = img.split()
+    # 半透明的地方會變灰，因此改為全透明
+    a = a.point(lambda i: i > 254 and 255)
+    return Image.merge('LA', (g, a))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("input", type=str, nargs='+', help="pdf檔案名稱")
