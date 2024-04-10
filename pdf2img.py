@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第2版
+#第3版
 import argparse
 import sys
 import os
@@ -8,6 +8,15 @@ import fitz
 from PIL import Image
 from io import BytesIO
 import math
+import numpy
+
+def fix_transparent_area(img):
+    g,a = img.split()
+    garr = numpy.array(g, dtype=numpy.uint32)
+    aarr = numpy.array(a, dtype=numpy.uint32)
+    garr *= 255
+    garr = numpy.floor_divide(garr, aarr, where=aarr!=0, out=numpy.zeros_like(garr))
+    return Image.merge('LA', (Image.fromarray(numpy.uint8(garr)), a))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("input", type=str, nargs='+', help="pdf檔案名稱")
@@ -73,6 +82,7 @@ for file in args.input:
                 zoom = width / width_transform
                 pixmap_noimg = page_noimg.get_pixmap(matrix=fitz.Matrix(zoom,zoom), colorspace='GRAY', alpha=True)
                 img_noimg = Image.frombytes('LA', [pixmap_noimg.width, pixmap_noimg.height], pixmap_noimg.samples)
+                img_noimg = fix_transparent_area(img_noimg)
                 img_merge = Image.new(pil_image.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)),color='white')
                 img_merge.paste(pil_image, (round(image_matrix[4]*zoom), round(image_matrix[5]*zoom)))
                 img_merge.paste(img_noimg, (0, 0), img_noimg)
