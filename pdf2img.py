@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第7版
+#第8版
 import sys
 import os
 import traceback
@@ -12,6 +12,7 @@ def read_config():
     config = {'error': False,
               'single-image': False,
               'no-crop': False,
+              'prefer-mono': False,
               'prefer-png': False,
               'tiff-compression': 'packbits'}
     try:
@@ -28,6 +29,8 @@ def read_config():
                 config['single-image'] = True
             elif option[0] == 'no-crop':
                 config['no-crop'] = True
+            elif option[0] == 'prefer-mono':
+                config['prefer-mono'] = True
             elif option[0] == 'prefer-png':
                 config['prefer-png'] = True
             elif option[0] == 'tiff-compression':
@@ -47,18 +50,13 @@ def find_largest_image(images):
             index = i
     return images[index]
 
-def fix_transparent_area(img):
-    g, a = img.split()
-    # 半透明的地方會變灰，因此改為全透明
-    a = a.point(lambda i: i > 254 and 255)
-    return Image.merge('LA', (g, a))
-
 def render_image(page, zoom, colorspace='GRAY', alpha=True):
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
     if not alpha:
         return Image.frombytes('L', [pixmap.width, pixmap.height], pixmap.samples)
-    image = Image.frombytes('LA', [pixmap.width, pixmap.height], pixmap.samples)
-    return fix_transparent_area(image)
+    image = Image.frombytes('La', [pixmap.width, pixmap.height], pixmap.samples)
+    image = image.convert('LA')
+    return image
 
 def generate_image(config, doc, page, page_noimg, image, output_dir):
     try:
@@ -67,12 +65,14 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
         height = int(doc.xref_get_key(img_xref, "Height")[1])
         cs_type = doc.xref_get_key(img_xref, "ColorSpace")[0]
         cs = doc.xref_get_key(img_xref, "ColorSpace")[1]
+        is_mono = False
         output_name=f"{output_dir}/{page.number+1}-{img_xref}"
         if doc.xref_get_key(img_xref, "Filter")[1] == '/DCTDecode':
             print(output_name, "jpeg")
             pil_image = Image.open(BytesIO(doc.xref_stream_raw(img_xref)))
         elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true' or doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
             print(output_name, "mono")
+            is_mono = True
             pil_image = Image.frombytes('1', (width,height), doc.xref_stream(img_xref))
             pil_image = pil_image.convert('L')
         elif cs_type == 'xref':
@@ -114,6 +114,8 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
             img_merge = Image.new(pil_image.mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
             img_merge.paste(pil_image, (round(max(image_matrix[4], 0) * zoom), round(max(image_matrix[5], 0) * zoom)))
             img_merge.paste(img_noimg, (round(-x_offset * zoom), round(-y_offset * zoom)), img_noimg)
+        if is_mono and config['prefer-mono']:
+            img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
             
         return img_merge, output_name
     except Exception as e:
