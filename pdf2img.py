@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#第6版
+#第7版
 import sys
 import os
 import traceback
@@ -15,7 +15,8 @@ def read_config():
               'prefer-png': False,
               'tiff-compression': 'packbits'}
     try:
-        config_file = open('config-pdf2img.txt', 'r')
+        config_filename = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config-pdf2img.txt'))
+        config_file = open(config_filename, 'r', encoding='utf-8')
         lines = config_file.read().split('\n')
         for line in lines:
             option = line.split()
