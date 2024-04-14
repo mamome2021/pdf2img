@@ -19,7 +19,10 @@ def read_config():
               'prefer-png': False,
               'tiff-compression': 'packbits'}
     try:
-        config_filename = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config-pdf2img.txt'))
+        if 'PDF2IMG_CONFIG' in os.environ:
+            config_filename = os.environ['PDF2IMG_CONFIG']
+        else:
+            config_filename = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config-pdf2img.txt'))
         with open(config_filename, 'r', encoding='utf-8') as config_file:
             lines = config_file.read().split('\n')
         for line in lines:
@@ -221,7 +224,10 @@ def main():
                 xref = image[0]
                 page.delete_image(xref)
         doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
-        output_dir = file + "-img"
+        if 'PDF2IMG_OUTPUT' in os.environ:
+            output_dir = os.environ['PDF2IMG_OUTPUT']
+        else:
+            output_dir = file + "-img"
         os.makedirs(output_dir, exist_ok=True)
 
         for pagenum, page in enumerate(doc):
