@@ -20,8 +20,8 @@ def read_config():
               'tiff-compression': 'packbits'}
     try:
         config_filename = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config-pdf2img.txt'))
-        config_file = open(config_filename, 'r', encoding='utf-8')
-        lines = config_file.read().split('\n')
+        with open(config_filename, 'r', encoding='utf-8') as config_file:
+            lines = config_file.read().split('\n')
         for line in lines:
             option = line.split()
             if len(option) == 0:
@@ -150,7 +150,8 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
     if image_type == 'jpeg':
         image_extract = Image.open(BytesIO(image_extract))
         if config['extract-jpeg']:
-            open(f"{output_name}.jpg",'wb').write(image_extract)
+            with open(f"{output_name}.jpg",'wb') as f:
+                f.write(image_extract)
     elif image_type == 'mono':
         image_extract = image_extract.convert('L')
 
