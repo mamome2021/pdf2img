@@ -81,50 +81,49 @@ def render_image(config, page, zoom, colorspace='GRAY', alpha=True):
     image = image.convert('LA')
     return image
 
-def generate_image(config, doc, page, page_noimg, image, output_dir):
-    img_xref = image[0]
+def extract_image(doc, img_xref, output_name):
     width = int(doc.xref_get_key(img_xref, "Width")[1])
     height = int(doc.xref_get_key(img_xref, "Height")[1])
     cs_type = doc.xref_get_key(img_xref, "ColorSpace")[0]
     cs = doc.xref_get_key(img_xref, "ColorSpace")[1]
-    is_mono = False
-    output_name = f"{output_dir}/{page.number+1}-{img_xref}"
     if doc.xref_get_key(img_xref, "Filter")[1] == '/DCTDecode':
         if cs == "/DeviceCMYK":
             print(output_name, "jpeg-cmyk")
             pixmap = fitz.Pixmap(doc, img_xref)
-            pil_image = Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples)
+            return "cmyk", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples)
         else:
             print(output_name, "jpeg")
-            pil_image = Image.open(BytesIO(doc.xref_stream_raw(img_xref)))
-            if config['extract-jpeg']:
-                open(f"{output_name}.jpg",'wb').write(doc.xref_stream_raw(img_xref))
+            return "jpeg", doc.xref_stream_raw(img_xref)
     elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true' or doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
         print(output_name, "mono")
-        is_mono = True
-        pil_image = Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
-        pil_image = pil_image.convert('L')
+        return "mono", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif cs_type == 'xref':
         print(output_name, "xref cs")
         # 太難了不會做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
-        pil_image = Image.open(BytesIO(img_data))
+        return "rgb", Image.open(BytesIO(img_data))
     elif cs == "/DeviceCMYK":
         print(output_name, "cmyk")
-        pil_image = Image.frombytes('CMYK', (width, height), doc.xref_stream(img_xref))
+        return "cmyk", Image.frombytes('CMYK', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceGray":
         print(output_name, "gray")
-        pil_image = Image.frombytes('L', (width, height), doc.xref_stream(img_xref))
+        return "gray", Image.frombytes('L', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceRGB":
         print(output_name,"rgb")
-        pil_image = Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
+        return "rgb", Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
     else:
         print(output_name,"wip:", cs)
         # 其他，還沒做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
-        pil_image = Image.open(BytesIO(img_data))
+        return "rgb", Image.open(BytesIO(img_data))
+
+def generate_image(config, doc, page, page_noimg, image, output_dir):
+    img_xref = image[0]
+    width = int(doc.xref_get_key(img_xref, "Width")[1])
+    height = int(doc.xref_get_key(img_xref, "Height")[1])
+    output_name = f"{output_dir}/{page.number+1}-{img_xref}"
     image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
     if image_matrix[1:3] != (0, 0):
         print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
@@ -133,9 +132,18 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
     if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
         print('警告：圖片寬高比改變')
     img_noimg = render_image(config, page_noimg, zoom)
+
+    image_type, image_extract = extract_image(doc, img_xref, output_name)
+    if image_type == 'jpeg':
+        image_extract = Image.open(BytesIO(image_extract))
+        if config['extract-jpeg']:
+            open(f"{output_name}.jpg",'wb').write(image_extract)
+    elif image_type == 'mono':
+        image_extract = image_extract.convert('L')
+
     if not config['no-crop']:
-        img_merge = Image.new(pil_image.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
-        img_merge.paste(pil_image, (round(image_matrix[4] * zoom), round(image_matrix[5] * zoom)))
+        img_merge = Image.new(image_extract.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
+        img_merge.paste(image_extract, (round(image_matrix[4] * zoom), round(image_matrix[5] * zoom)))
         img_merge.paste(img_noimg, (0, 0), img_noimg)
     else:
         image_rect = page.get_image_rects(img_xref)[0]
@@ -143,10 +151,10 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
         height_merge = max(page.rect[3], image_rect[3]) - min(page.rect[1], image_rect[1])
         x_offset = min(image_rect[0], 0)
         y_offset = min(image_rect[1], 0)
-        img_merge = Image.new(pil_image.mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
-        img_merge.paste(pil_image, (round(max(image_matrix[4], 0) * zoom), round(max(image_matrix[5], 0) * zoom)))
+        img_merge = Image.new(image_extract.mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
+        img_merge.paste(image_extract, (round(max(image_matrix[4], 0) * zoom), round(max(image_matrix[5], 0) * zoom)))
         img_merge.paste(img_noimg, (round(-x_offset * zoom), round(-y_offset * zoom)), img_noimg)
-    if is_mono and config['prefer-mono']:
+    if image_type == 'mono' and config['prefer-mono']:
         img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
 
     return img_merge
