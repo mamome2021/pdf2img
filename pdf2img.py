@@ -127,7 +127,8 @@ def extract_image(doc, img_xref, output_name):
 
 def save_extracted_image(config, doc, page, image, output_dir):
     img_xref = image[0]
-    output_name = f"{output_dir}/{page.number+1}-{img_xref}"
+    pagenum_str = str(page.number + 1).zfill(3)
+    output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
     image_type, image_extract = extract_image(doc, img_xref, output_name)
     if image_type == 'jpeg':
         with open(f"{output_name}.jpg",'wb') as f:
@@ -139,7 +140,8 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
     img_xref = image[0]
     width = int(doc.xref_get_key(img_xref, "Width")[1])
     height = int(doc.xref_get_key(img_xref, "Height")[1])
-    output_name = f"{output_dir}/{page.number+1}-{img_xref}"
+    pagenum_str = str(page.number + 1).zfill(3)
+    output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
     image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
     if image_matrix[1:3] != (0, 0):
         print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
