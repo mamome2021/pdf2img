@@ -148,10 +148,10 @@ def generate_image(config, doc, page, page_noimg, image, output_dir):
 
     image_type, image_extract = extract_image(doc, img_xref, output_name)
     if image_type == 'jpeg':
-        image_extract = Image.open(BytesIO(image_extract))
         if config['extract-jpeg']:
             with open(f"{output_name}.jpg",'wb') as f:
                 f.write(image_extract)
+        image_extract = Image.open(BytesIO(image_extract))
     elif image_type == 'mono':
         image_extract = image_extract.convert('L')
 
