@@ -9,6 +9,7 @@ import math
 
 def read_config():
     config = {'error': False,
+              'only-extract': False,
               'single-image': False,
               'no-crop': False,
               'remove-path-fill': False,
@@ -27,6 +28,8 @@ def read_config():
                 continue
             if option[0] == 'error':
                 config['error'] = True
+            elif option[0] == 'only-extract':
+                config['only-extract'] = True
             elif option[0] == 'single-image':
                 config['single-image'] = True
             elif option[0] == 'no-crop':
@@ -118,6 +121,16 @@ def extract_image(doc, img_xref, output_name):
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
         return "rgb", Image.open(BytesIO(img_data))
+
+def save_extracted_image(config, doc, page, image, output_dir):
+    img_xref = image[0]
+    output_name = f"{output_dir}/{page.number+1}-{img_xref}"
+    image_type, image_extract = extract_image(doc, img_xref, output_name)
+    if image_type == 'jpeg':
+        with open(f"{output_name}.jpg",'wb') as f:
+            f.write(image_extract)
+    else:
+        save_pil_image(config, image_extract, output_name)
 
 def generate_image(config, doc, page, page_noimg, image, output_dir):
     img_xref = image[0]
@@ -215,6 +228,12 @@ def main():
                 page_noimg = doc_noimg[pagenum]
                 images = page.get_images()
                 pagenum_str = str(pagenum + 1).zfill(3)
+
+                if config['only-extract']:
+                    for image in images:
+                        save_extracted_image(config, doc, page, image, output_dir)
+                    continue
+
                 if not images:
                     print(f'警告：第{pagenum+1}頁沒有圖片，使用600dpi渲染')
                     image = render_image(config, page, 600 / 72, alpha=False)
