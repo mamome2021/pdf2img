@@ -136,44 +136,68 @@ def save_extracted_image(config, doc, page, image, output_dir):
     else:
         save_pil_image(config, image_extract, output_name)
 
-def generate_image(config, doc, page, page_noimg, image, output_dir):
-    img_xref = image[0]
-    width = int(doc.xref_get_key(img_xref, "Width")[1])
-    height = int(doc.xref_get_key(img_xref, "Height")[1])
-    pagenum_str = str(page.number + 1).zfill(3)
-    output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
-    image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
-    if image_matrix[1:3] != (0, 0):
-        print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
-    zoom = width / image_matrix[0]
-    zoom_y = height / image_matrix[3]
-    if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
-        print('警告：圖片寬高比改變')
+def generate_image(config, doc, page, page_noimg, images, output_dir):
+    zoom_list = []
+    image_extract_list = []
+    image_matrix_list = []
+    img_xref_list = []
+    image_type_list = []
+    
+    for image in images:
+        img_xref = image[0]
+        width = int(doc.xref_get_key(img_xref, "Width")[1])
+        height = int(doc.xref_get_key(img_xref, "Height")[1])
+        pagenum_str = str(page.number + 1).zfill(3)
+        output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
+        image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
+        if image_matrix[1:3] != (0, 0):
+            print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
+        zoom = width / image_matrix[0]
+        zoom_y = height / image_matrix[3]
+        if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
+            print('警告：圖片寬高比改變')
+
+        image_type, image_extract = extract_image(doc, img_xref, output_name)
+        if image_type == 'jpeg':
+            if config['extract-jpeg']:
+                with open(f"{output_name}.jpg",'wb') as f:
+                    f.write(image_extract)
+            image_extract = Image.open(BytesIO(image_extract))
+        elif image_type == 'mono':
+            image_extract = image_extract.convert('L')
+
+        zoom_list.append(zoom)
+        image_extract_list.append(image_extract)
+        image_matrix_list.append(image_matrix)
+        img_xref_list.append(img_xref)
+        image_type_list.append(image_type)
+
+    # TODO: find good value for zoom
+    zoom = zoom_list[0]
+
     img_noimg = render_image(config, page_noimg, zoom)
-
-    image_type, image_extract = extract_image(doc, img_xref, output_name)
-    if image_type == 'jpeg':
-        if config['extract-jpeg']:
-            with open(f"{output_name}.jpg",'wb') as f:
-                f.write(image_extract)
-        image_extract = Image.open(BytesIO(image_extract))
-    elif image_type == 'mono':
-        image_extract = image_extract.convert('L')
-
     if not config['no-crop']:
-        img_merge = Image.new(image_extract.mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
-        img_merge.paste(image_extract, (round(image_matrix[4] * zoom), round(image_matrix[5] * zoom)))
+        # TODO: find good mode
+        img_merge = Image.new(image_extract_list[0].mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
+        for index in range(len(images)):
+            if img_xref_list[index]==1747:
+                pass
+            print('paste ',img_xref_list[index])
+            img_merge.paste(image_extract_list[index], (round(image_matrix_list[index][4] * zoom), round(image_matrix_list[index][5] * zoom)))
         img_merge.paste(img_noimg, (0, 0), img_noimg)
     else:
-        image_rect = page.get_image_rects(img_xref)[0]
+        # TODO: make image_rect a list
+        image_rect = page.get_image_rects(img_xref_list[0])[0]
         width_merge = max(page.rect[2], image_rect[2]) - min(page.rect[0], image_rect[0])
         height_merge = max(page.rect[3], image_rect[3]) - min(page.rect[1], image_rect[1])
         x_offset = min(image_rect[0], 0)
         y_offset = min(image_rect[1], 0)
-        img_merge = Image.new(image_extract.mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
-        img_merge.paste(image_extract, (round(max(image_matrix[4], 0) * zoom), round(max(image_matrix[5], 0) * zoom)))
+        # TODO: find good mode
+        img_merge = Image.new(image_extract_list[0].mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
+        for index in range(len(images)):
+            img_merge.paste(image_extract_list[index], (round(max(image_matrix_list[index][4], 0) * zoom), round(max(image_matrix_list[index][5], 0) * zoom)))
         img_merge.paste(img_noimg, (round(-x_offset * zoom), round(-y_offset * zoom)), img_noimg)
-    if image_type == 'mono' and config['prefer-mono']:
+    if all(image_type == 'mono' for image_type in image_type_list) and config['prefer-mono']:
         img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
 
     return img_merge
@@ -248,17 +272,8 @@ def main():
                     image = render_image(config, page, 600 / 72, alpha=False)
                     save_pil_image(config, image, f"{output_dir}/{pagenum_str}")
                     continue
-                if len(images) > 1:
-                    print(f'警告：第{pagenum+1}頁包含多張圖片，輸出圖片只會包含一張圖片')
-                    if config['single-image']:
-                        images = [find_largest_image(images)]
-                for image in images:
-                    img_generated = generate_image(config, doc, page, page_noimg, image, output_dir)
-                    if len(images) == 1:
-                        output_name = f"{output_dir}/{pagenum_str}"
-                    else:
-                        output_name = f"{output_dir}/{pagenum_str}-{image[0]}"
-                    save_pil_image(config, img_generated, output_name)
+                img_generated = generate_image(config, doc, page, page_noimg, images, output_dir)
+                save_pil_image(config, img_generated, f"{output_dir}/{pagenum_str}")
             except Exception as e:
                 print(traceback.format_exc())
                 if config['error']:
