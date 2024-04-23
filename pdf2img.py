@@ -11,7 +11,6 @@ import cairo
 def read_config():
     config = {'error': False,
               'only-extract': False,
-              'single-image': False,
               'no-crop': False,
               'remove-path-fill': False,
               'extract-jpeg': False,
@@ -34,8 +33,6 @@ def read_config():
                 config['error'] = True
             elif option[0] == 'only-extract':
                 config['only-extract'] = True
-            elif option[0] == 'single-image':
-                config['single-image'] = True
             elif option[0] == 'no-crop':
                 config['no-crop'] = True
             elif option[0] == 'remove-path-fill':
