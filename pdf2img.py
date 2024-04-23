@@ -3,9 +3,10 @@ import sys
 import os
 import traceback
 import fitz
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 import math
+import cairo
 
 def read_config():
     config = {'error': False,
@@ -77,7 +78,7 @@ def find_largest_image(images):
         if image[2] * image[3] > size:
             size = image[2] * image[3]
             index = i
-    return images[index]
+    return index
 
 def render_image(config, page, zoom, colorspace='GRAY', alpha=True):
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
@@ -100,7 +101,10 @@ def extract_image(doc, img_xref, output_name):
         else:
             print(output_name, "jpeg")
             return "jpeg", doc.xref_stream_raw(img_xref)
-    elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true' or doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
+    elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
+        print(output_name, "mask")
+        return "mono-mask", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
+    elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
         print(output_name, "mono")
         return "mono", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif cs_type == 'xref':
@@ -136,6 +140,77 @@ def save_extracted_image(config, doc, page, image, output_dir):
     else:
         save_pil_image(config, image_extract, output_name)
 
+def apply_clipping_path(doc, image, image_extract):
+    image_name = image[7]
+    image_xref = image[0]
+    width = int(doc.xref_get_key(image_xref, "Width")[1])
+    referencer = image[9]
+    stream = doc.xref_stream(referencer).split(f'\n/{image_name} Do\n'.encode())[0].split(b'\nQ\n')[-1]
+    if not b'\nW n\n' in stream:
+        # Clipping path is not set, return original image
+        return image_extract
+    matrix = stream.split(b'\n')[-1].split(b' ')
+    if matrix[-1] != b'cm':
+        # Something wrong, return original image
+        return image_extract
+    matrix_width = float(matrix[0])
+    zoom = width / matrix_width
+    commands = stream.split(b'\nW n')[0].split(b'\n')
+    surface = cairo.ImageSurface(cairo.FORMAT_A1, image_extract.width, image_extract.height)
+    ctx = cairo.Context (surface)
+    for command in commands:
+        op = command.split(b' ')
+        if op[-1] == b'm':
+            x = float(op[0]) * zoom
+            y = image_extract.height - float(op[1]) * zoom
+            ctx.move_to(x, y)
+        elif op[-1] == b'l':
+            x = float(op[0]) * zoom
+            y = image_extract.height - float(op[1]) * zoom
+            ctx.line_to(x, y)
+        elif op[-1] == b'c':
+            x1 = float(op[0]) * zoom
+            y1 = image_extract.height - float(op[1]) * zoom
+            x2 = float(op[2]) * zoom
+            y2 = image_extract.height - float(op[3]) * zoom
+            x3 = float(op[4]) * zoom
+            y3 = image_extract.height - float(op[5]) * zoom
+            ctx.curve_to(x1, y1, x2, y2, x3, y3)
+        elif op[-1] == b'v':
+            x1, y1 = ctx.get_current_point()
+            x2 = float(op[0]) * zoom
+            y2 = image_extract.height - float(op[1]) * zoom
+            x3 = float(op[2]) * zoom
+            y3 = image_extract.height - float(op[3]) * zoom
+            ctx.curve_to(x1, y1, x2, y2, x3, y3)
+        elif op[-1] == b'y':
+            x1 = float(op[0]) * zoom
+            y1 = image_extract.height - float(op[1]) * zoom
+            x3 = float(op[2]) * zoom
+            y3 = image_extract.height - float(op[3]) * zoom
+            ctx.curve_to(x1, y1, x3, y3, x3, y3)
+        elif op[-1] == b're':
+            x = float(op[0]) * zoom
+            y = image_extract.height - float(op[1]) * zoom
+            w = float(op[2]) * zoom
+            h = float(op[3]) * zoom
+            ctx.move_to(x, y)
+            ctx.line_to(x + w, y)
+            ctx.line_to(x + w, y - h)
+            ctx.line_to(x, y - h)
+            ctx.close_path()
+        elif op[-1] == b'h':
+            ctx.close_path()
+    ctx.clip()
+    ctx.rectangle(0, 0, image_extract.width, image_extract.height)
+    ctx.set_source_rgb(1,1,1)
+    ctx.fill()
+    clip_pil = Image.frombuffer('1', image_extract.size, surface.get_data(), 'raw', '1;R' ,surface.get_stride())
+    image_clipped = Image.new(image_extract.mode, image_extract.size, 'white')
+    image_clipped.putalpha(0)
+    image_clipped.paste(image_extract, mask=clip_pil)
+    return image_clipped
+
 def generate_image(config, doc, page, page_noimg, images, output_dir):
     zoom_list = []
     image_extract_list = []
@@ -163,7 +238,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
                 with open(f"{output_name}.jpg",'wb') as f:
                     f.write(image_extract)
             image_extract = Image.open(BytesIO(image_extract))
-        elif image_type == 'mono':
+        elif image_type.startswith('mono'):
             image_extract = image_extract.convert('L')
 
         zoom_list.append(zoom)
@@ -172,20 +247,33 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         img_xref_list.append(img_xref)
         image_type_list.append(image_type)
 
-    # TODO: find good value for zoom
-    zoom = zoom_list[0]
+    zoom = zoom_list[find_largest_image(images)]
+    for it in zoom_list:
+        if math.ceil(page.rect[3] * zoom) != math.ceil(page.rect[3] * it):
+            print(f'警告：第{pagenum_str}頁包含多張圖片，縮放程度不同')
 
     img_noimg = render_image(config, page_noimg, zoom)
     if not config['no-crop']:
         # TODO: find good mode
-        img_merge = Image.new(image_extract_list[0].mode, (math.ceil(page.rect[2] * zoom), math.ceil(page.rect[3] * zoom)), color='white')
+        width_merge = math.ceil(page.rect[2] * zoom)
+        height_merge = math.ceil(page.rect[3] * zoom)
+        img_merge = Image.new(image_extract_list[0].mode, (width_merge, height_merge), 'white')
         for index in range(len(images)):
-            if img_xref_list[index]==1747:
-                pass
-            print('paste ',img_xref_list[index])
-            img_merge.paste(image_extract_list[index], (round(image_matrix_list[index][4] * zoom), round(image_matrix_list[index][5] * zoom)))
+            # TODO: putalpha converts CMYK to RGBA
+            image_clip = Image.new(image_extract_list[index].mode, (width_merge, height_merge), 'white')
+            image_clip.putalpha(0)
+            image_clip.paste(image_extract_list[index], (round(image_matrix_list[index][4] * zoom), round(image_matrix_list[index][5] * zoom)))
+            image_clip = apply_clipping_path(doc, images[index], image_clip)
+            if image_type_list[index] == 'mono-mask':
+                gray, alpha = image_clip.split()
+                invert = ImageOps.invert(gray)
+                img_merge.paste(gray, mask=invert)
+            else:
+                img_merge.paste(image_clip)
         img_merge.paste(img_noimg, (0, 0), img_noimg)
+
     else:
+        # TODO: make no-crop work
         # TODO: make image_rect a list
         image_rect = page.get_image_rects(img_xref_list[0])[0]
         width_merge = max(page.rect[2], image_rect[2]) - min(page.rect[0], image_rect[0])
@@ -197,7 +285,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         for index in range(len(images)):
             img_merge.paste(image_extract_list[index], (round(max(image_matrix_list[index][4], 0) * zoom), round(max(image_matrix_list[index][5], 0) * zoom)))
         img_merge.paste(img_noimg, (round(-x_offset * zoom), round(-y_offset * zoom)), img_noimg)
-    if all(image_type == 'mono' for image_type in image_type_list) and config['prefer-mono']:
+    if all(image_type.startswith('mono') for image_type in image_type_list) and config['prefer-mono']:
         img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
 
     return img_merge
@@ -259,7 +347,7 @@ def main():
         for pagenum, page in enumerate(doc):
             try:
                 page_noimg = doc_noimg[pagenum]
-                images = page.get_images()
+                images = page.get_images(full=True)
                 pagenum_str = str(pagenum + 1).zfill(3)
 
                 if config['only-extract']:
