@@ -137,58 +137,58 @@ def save_extracted_image(config, doc, page, image, output_dir):
     else:
         save_pil_image(config, image_extract, output_name)
 
-def apply_clipping_path(doc, image, image_extract):
+def create_clipping_path_image(doc, image, size, image_pos, image_size):
     image_name = image[7]
     image_xref = image[0]
     width = int(doc.xref_get_key(image_xref, "Width")[1])
     referencer = image[9]
     stream = doc.xref_stream(referencer).split(f'\n/{image_name} Do\n'.encode())[0].split(b'\nQ\n')[-1]
     if not b'\nW n\n' in stream:
-        # Clipping path is not set, return original image
-        return image_extract
+        # Clipping path is not set
+        return Image.new('1', image_size, 'white')
     matrix = stream.split(b'\n')[-1].split(b' ')
     if matrix[-1] != b'cm':
-        # Something wrong, return original image
-        return image_extract
+        # Something wrong
+        return Image.new('1', image_size, 'white')
     matrix_width = float(matrix[0])
     zoom = width / matrix_width
     commands = stream.split(b'\nW n')[0].split(b'\n')
-    surface = cairo.ImageSurface(cairo.FORMAT_A1, image_extract.width, image_extract.height)
+    surface = cairo.ImageSurface(cairo.FORMAT_A1, size[0], size[1])
     ctx = cairo.Context (surface)
     for command in commands:
         op = command.split(b' ')
         if op[-1] == b'm':
             x = float(op[0]) * zoom
-            y = image_extract.height - float(op[1]) * zoom
+            y = size[1] - float(op[1]) * zoom
             ctx.move_to(x, y)
         elif op[-1] == b'l':
             x = float(op[0]) * zoom
-            y = image_extract.height - float(op[1]) * zoom
+            y = size[1] - float(op[1]) * zoom
             ctx.line_to(x, y)
         elif op[-1] == b'c':
             x1 = float(op[0]) * zoom
-            y1 = image_extract.height - float(op[1]) * zoom
+            y1 = size[1] - float(op[1]) * zoom
             x2 = float(op[2]) * zoom
-            y2 = image_extract.height - float(op[3]) * zoom
+            y2 = size[1] - float(op[3]) * zoom
             x3 = float(op[4]) * zoom
-            y3 = image_extract.height - float(op[5]) * zoom
+            y3 = size[1] - float(op[5]) * zoom
             ctx.curve_to(x1, y1, x2, y2, x3, y3)
         elif op[-1] == b'v':
             x1, y1 = ctx.get_current_point()
             x2 = float(op[0]) * zoom
-            y2 = image_extract.height - float(op[1]) * zoom
+            y2 = size[1] - float(op[1]) * zoom
             x3 = float(op[2]) * zoom
-            y3 = image_extract.height - float(op[3]) * zoom
+            y3 = size[1] - float(op[3]) * zoom
             ctx.curve_to(x1, y1, x2, y2, x3, y3)
         elif op[-1] == b'y':
             x1 = float(op[0]) * zoom
-            y1 = image_extract.height - float(op[1]) * zoom
+            y1 = size[1] - float(op[1]) * zoom
             x3 = float(op[2]) * zoom
-            y3 = image_extract.height - float(op[3]) * zoom
+            y3 = size[1] - float(op[3]) * zoom
             ctx.curve_to(x1, y1, x3, y3, x3, y3)
         elif op[-1] == b're':
             x = float(op[0]) * zoom
-            y = image_extract.height - float(op[1]) * zoom
+            y = size[1] - float(op[1]) * zoom
             w = float(op[2]) * zoom
             h = float(op[3]) * zoom
             ctx.move_to(x, y)
@@ -199,13 +199,16 @@ def apply_clipping_path(doc, image, image_extract):
         elif op[-1] == b'h':
             ctx.close_path()
     ctx.clip()
-    ctx.rectangle(0, 0, image_extract.width, image_extract.height)
+    ctx.rectangle(0, 0, size[0], size[1])
     ctx.set_source_rgb(1,1,1)
     ctx.fill()
-    clip_pil = Image.frombuffer('1', image_extract.size, surface.get_data(), 'raw', '1;R' ,surface.get_stride())
-    image_clipped = Image.new(image_extract.mode, image_extract.size, 'white')
-    image_clipped.putalpha(0)
-    image_clipped.paste(image_extract, mask=clip_pil)
+    clipping_path =  Image.frombuffer('1', size, surface.get_data(), 'raw', '1;R' ,surface.get_stride())
+    clipping_path = clipping_path.crop((image_pos[0], image_pos[1], image_pos[0] + image_size[0], image_pos[1] + image_size[1]))
+    return clipping_path
+
+def create_clipped_image_for_imagemask(imagemask, clipping_path):
+    image_clipped = Image.new('LA', imagemask.size, (255, 0))
+    image_clipped.paste(imagemask, mask=clipping_path)
     return image_clipped
 
 def generate_image(config, doc, page, page_noimg, images, output_dir):
@@ -214,6 +217,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     image_matrix_list = []
     img_xref_list = []
     image_type_list = []
+    mode_list = []
     
     for image in images:
         img_xref = image[0]
@@ -243,6 +247,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         image_matrix_list.append(image_matrix)
         img_xref_list.append(img_xref)
         image_type_list.append(image_type)
+        mode_list.append(image_extract.mode)
 
     zoom = zoom_list[find_largest_image(images)]
     for it in zoom_list:
@@ -250,23 +255,27 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             print(f'警告：第{pagenum_str}頁包含多張圖片，縮放程度不同')
 
     img_noimg = render_image(config, page_noimg, zoom)
+
+    mode_merge = 'L'
+    if 'RGB' in mode_list:
+        mode_merge = 'RGB'
+    elif 'CMYK' in mode_list:
+        mode_merge = 'CMYK'
+
     if not config['no-crop']:
-        # TODO: find good mode
         width_merge = math.ceil(page.rect[2] * zoom)
         height_merge = math.ceil(page.rect[3] * zoom)
-        img_merge = Image.new(image_extract_list[0].mode, (width_merge, height_merge), 'white')
+        img_merge = Image.new(mode_merge, (width_merge, height_merge), 'white')
         for index in range(len(images)):
-            # TODO: putalpha converts CMYK to RGBA
-            image_clip = Image.new(image_extract_list[index].mode, (width_merge, height_merge), 'white')
-            image_clip.putalpha(0)
-            image_clip.paste(image_extract_list[index], (round(image_matrix_list[index][4] * zoom), round(image_matrix_list[index][5] * zoom)))
-            image_clip = apply_clipping_path(doc, images[index], image_clip)
+            image_pos = (round(image_matrix_list[index][4] * zoom), round(image_matrix_list[index][5] * zoom))
+            clipping_path = create_clipping_path_image(doc, images[index], (width_merge, height_merge), image_pos, image_extract_list[index].size)
             if image_type_list[index] == 'mono-mask':
-                gray, alpha = image_clip.split()
+                clipped_image = create_clipped_image_for_imagemask(image_extract_list[index], clipping_path)
+                gray, alpha = clipped_image.split()
                 invert = ImageOps.invert(gray)
-                img_merge.paste(gray, mask=invert)
+                img_merge.paste(gray, image_pos, mask=invert)
             else:
-                img_merge.paste(image_clip)
+                img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
         img_merge.paste(img_noimg, (0, 0), img_noimg)
 
     else:
