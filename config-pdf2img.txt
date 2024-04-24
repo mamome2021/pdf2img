@@ -6,7 +6,7 @@
 #只提取原圖，不疊加渲染圖
 #only-extract
 
-#不裁切超出pdf頁面的原圖
+#不裁切超出pdf頁面的原圖，並忽略clipping path
 #no-crop
 
 #移除路徑填滿效果

@@ -215,6 +215,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     zoom_list = []
     image_extract_list = []
     image_matrix_list = []
+    image_rect_list = []
     img_xref_list = []
     image_type_list = []
     mode_list = []
@@ -226,6 +227,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         pagenum_str = str(page.number + 1).zfill(3)
         output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
         image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
+        image_rect = page.get_image_rects(img_xref)[0]
         if image_matrix[1:3] != (0, 0):
             print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
         zoom = width / image_matrix[0]
@@ -245,6 +247,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         zoom_list.append(zoom)
         image_extract_list.append(image_extract)
         image_matrix_list.append(image_matrix)
+        image_rect_list.append(image_rect)
         img_xref_list.append(img_xref)
         image_type_list.append(image_type)
         mode_list.append(image_extract.mode)
@@ -262,37 +265,37 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     elif 'CMYK' in mode_list:
         mode_merge = 'CMYK'
 
-    if not config['no-crop']:
-        width_merge = math.ceil(page.rect[2] * zoom)
-        height_merge = math.ceil(page.rect[3] * zoom)
-        img_merge = Image.new(mode_merge, (width_merge, height_merge), 'white')
-        for index in range(len(images)):
-            image_pos = (round(image_matrix_list[index][4] * zoom), round(image_matrix_list[index][5] * zoom))
-            clipping_path = create_clipping_path_image(doc, images[index], (width_merge, height_merge), image_pos, image_extract_list[index].size)
-            if image_type_list[index] == 'mono-mask':
-                clipped_image = create_clipped_image_for_imagemask(image_extract_list[index], clipping_path)
-                gray, alpha = clipped_image.split()
-                invert = ImageOps.invert(gray)
-                img_merge.paste(gray, image_pos, mask=invert)
-            else:
-                img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
-        img_merge.paste(img_noimg, (0, 0), img_noimg)
+    rect_merge = page.rect
+    if config['no-crop']:
+        if len(images) > 1:
+            print(f"警告：第{pagenum_str}頁包含多張圖片，使用'no-crop'選項可能導致圖片重疊")
+        for image_rect in image_rect_list:
+            if image_rect[0] < rect_merge[0]:
+                rect_merge[0] = image_rect[0]
+            if image_rect[1] < rect_merge[1]:
+                rect_merge[1] = image_rect[1]
+            if image_rect[2] > rect_merge[2]:
+                rect_merge[2] = image_rect[2]
+            if image_rect[3] > rect_merge[3]:
+                rect_merge[3] = image_rect[3]
 
-    else:
-        # TODO: make no-crop work
-        # TODO: make image_rect a list
-        image_rect = page.get_image_rects(img_xref_list[0])[0]
-        width_merge = max(page.rect[2], image_rect[2]) - min(page.rect[0], image_rect[0])
-        height_merge = max(page.rect[3], image_rect[3]) - min(page.rect[1], image_rect[1])
-        x_offset = min(image_rect[0], 0)
-        y_offset = min(image_rect[1], 0)
-        # TODO: find good mode
-        img_merge = Image.new(image_extract_list[0].mode, (math.ceil(width_merge * zoom), math.ceil(height_merge * zoom)), color='white')
-        for index in range(len(images)):
-            img_merge.paste(image_extract_list[index], (round(max(image_matrix_list[index][4], 0) * zoom), round(max(image_matrix_list[index][5], 0) * zoom)))
-        img_merge.paste(img_noimg, (round(-x_offset * zoom), round(-y_offset * zoom)), img_noimg)
-    if all(image_type.startswith('mono') for image_type in image_type_list) and config['prefer-mono']:
-        img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
+    width_merge = math.ceil((rect_merge[2] - rect_merge[0]) * zoom)
+    height_merge = math.ceil((rect_merge[3] - rect_merge[1]) * zoom)
+    img_merge = Image.new(mode_merge, (width_merge, height_merge), 'white')
+    for index in range(len(images)):
+        image_pos = (round((image_matrix_list[index][4] - rect_merge[0]) * zoom), round((image_matrix_list[index][5] - rect_merge[1]) * zoom))
+        if config['no-crop']:
+            clipping_path = Image.new('1', image_extract_list[index].size, 'white')
+        else:
+            clipping_path = create_clipping_path_image(doc, images[index], (width_merge, height_merge), image_pos, image_extract_list[index].size)
+        if image_type_list[index] == 'mono-mask':
+            clipped_image = create_clipped_image_for_imagemask(image_extract_list[index], clipping_path)
+            gray, alpha = clipped_image.split()
+            invert = ImageOps.invert(gray)
+            img_merge.paste(gray, image_pos, mask=invert)
+        else:
+            img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
+    img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
 
     return img_merge
 
