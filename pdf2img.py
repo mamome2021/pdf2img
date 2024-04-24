@@ -9,8 +9,7 @@ import math
 import cairo
 
 def read_config():
-    config = {'error': False,
-              'only-extract': False,
+    config = {'only-extract': False,
               'no-crop': False,
               'remove-path-fill': False,
               'extract-jpeg': False,
@@ -29,8 +28,6 @@ def read_config():
             option = line.split()
             if len(option) == 0:
                 continue
-            if option[0] == 'error':
-                config['error'] = True
             elif option[0] == 'only-extract':
                 config['only-extract'] = True
             elif option[0] == 'no-crop':
@@ -365,7 +362,5 @@ def main():
                 save_pil_image(config, img_generated, f"{output_dir}/{pagenum_str}")
             except Exception as e:
                 print(traceback.format_exc())
-                if config['error']:
-                    exit(1)
 
 main()
