@@ -92,35 +92,28 @@ def extract_image(doc, img_xref, output_name):
     cs = doc.xref_get_key(img_xref, "ColorSpace")[1]
     if doc.xref_get_key(img_xref, "Filter")[1] == '/DCTDecode':
         if cs == "/DeviceCMYK":
-            print(output_name, "jpeg-cmyk")
             pixmap = fitz.Pixmap(doc, img_xref)
             return "cmyk", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples)
         else:
-            print(output_name, "jpeg")
             return "jpeg", doc.xref_stream_raw(img_xref)
     elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
-        print(output_name, "mask")
         return "mono-mask", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
-        print(output_name, "mono")
         return "mono", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif cs_type == 'xref':
-        print(output_name, "xref cs")
+        print(output_name, "警告：xref cs")
         # 太難了不會做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
         return "rgb", Image.open(BytesIO(img_data))
     elif cs == "/DeviceCMYK":
-        print(output_name, "cmyk")
         return "cmyk", Image.frombytes('CMYK', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceGray":
-        print(output_name, "gray")
         return "gray", Image.frombytes('L', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceRGB":
-        print(output_name,"rgb")
         return "rgb", Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
     else:
-        print(output_name,"wip:", cs)
+        print(output_name,"警告：未知色彩空間", cs)
         # 其他，還沒做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
@@ -365,7 +358,6 @@ def main():
                     continue
 
                 if not images:
-                    print(f'警告：第{pagenum+1}頁沒有圖片，使用600dpi渲染')
                     image = render_image(config, page, 600 / 72, alpha=False)
                     save_pil_image(config, image, f"{output_dir}/{pagenum_str}")
                     continue
