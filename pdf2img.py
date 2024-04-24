@@ -11,7 +11,6 @@ import cairo
 def read_config():
     config = {'only-extract': False,
               'no-crop': False,
-              'remove-path-fill': False,
               'extract-jpeg': False,
               'small-output': False,
               'prefer-mono': False,
@@ -32,8 +31,6 @@ def read_config():
                 config['only-extract'] = True
             elif option[0] == 'no-crop':
                 config['no-crop'] = True
-            elif option[0] == 'remove-path-fill':
-                config['remove-path-fill'] = True
             elif option[0] == 'extract-jpeg':
                 config['extract-jpeg'] = True
             elif option[0] == 'small-output':
@@ -331,8 +328,7 @@ def main():
         doc = fitz.open(file)
         doc_noimg = fitz.open(file)
         for page in doc_noimg:
-            if config['remove-path-fill']:
-                remove_path_fill(doc_noimg, page)
+            remove_path_fill(doc_noimg, page)
             for image in page.get_images():
                 xref = image[0]
                 page.delete_image(xref)

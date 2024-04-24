@@ -6,9 +6,6 @@
 #不裁切超出pdf頁面的原圖，並忽略clipping path
 #no-crop
 
-#移除路徑填滿效果
-#remove-path-fill
-
 #若圖片為jpeg，也提取出未疊加渲染圖的原圖
 #extract-jpeg
 
