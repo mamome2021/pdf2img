@@ -15,8 +15,8 @@
 #若原圖為位圖，以位圖格式儲存
 #prefer-mono
 
-#以png格式儲存，除非色彩空間為CMYK
-#prefer-png
+#以png格式儲存（會將CMYK轉為RGB）
+#save-png
 
 #tiff壓縮方式，參考https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#tiff-saving
 #tiff-compression tiff_lzw

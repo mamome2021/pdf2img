@@ -14,7 +14,7 @@ def read_config():
               'extract-jpeg': False,
               'small-output': False,
               'prefer-mono': False,
-              'prefer-png': False,
+              'save-png': False,
               'tiff-compression': 'packbits'}
     try:
         if 'PDF2IMG_CONFIG' in os.environ:
@@ -37,8 +37,8 @@ def read_config():
                 config['small-output'] = True
             elif option[0] == 'prefer-mono':
                 config['prefer-mono'] = True
-            elif option[0] == 'prefer-png':
-                config['prefer-png'] = True
+            elif option[0] == 'save-png':
+                config['save-png'] = True
             elif option[0] == 'tiff-compression':
                 config['tiff-compression'] = option[1]
     except FileNotFoundError:
@@ -316,7 +316,9 @@ def save_pil_image(config, image, output_name):
             else:
                 image.save(f"{output_name}.png")
     else:
-        if config['prefer-png'] == True and image.mode != 'CMYK':
+        if config['save-png']:
+            if image.mode == 'CMYK':
+                image = image.convert('RGB')
             image.save(f"{output_name}.png")
         else:
             image.save(f"{output_name}.tiff", compression=config['tiff-compression'])
