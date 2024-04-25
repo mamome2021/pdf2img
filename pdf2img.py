@@ -15,7 +15,7 @@ def read_config():
               'small-output': False,
               'prefer-mono': False,
               'save-png': False,
-              'tiff-compression': 'packbits'}
+              'tiff-compression': 'tiff_lzw'}
     try:
         if 'PDF2IMG_CONFIG' in os.environ:
             config_filename = os.environ['PDF2IMG_CONFIG']
