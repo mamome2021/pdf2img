@@ -284,6 +284,9 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
     img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
 
+    if all(image_type.startswith('mono') for image_type in image_type_list) and config['prefer-mono']:
+        img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
+
     return img_merge
 
 def save_pil_image(config, image, output_name):
