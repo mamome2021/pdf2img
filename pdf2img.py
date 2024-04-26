@@ -71,11 +71,11 @@ def find_largest_image(images):
             index = i
     return index
 
-def render_image(config, page, zoom, colorspace='GRAY', alpha=True):
+def render_image(page, zoom, colorspace='GRAY', alpha=True):
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
     if not alpha:
-        return Image.frombytes('L', [pixmap.width, pixmap.height], pixmap.samples)
-    image = Image.frombytes('La', [pixmap.width, pixmap.height], pixmap.samples)
+        return Image.frombytes('L', (pixmap.width, pixmap.height), pixmap.samples)
+    image = Image.frombytes('La', (pixmap.width, pixmap.height), pixmap.samples)
     image = image.convert('LA')
     return image
 
@@ -86,6 +86,7 @@ def extract_image(doc, img_xref, output_name):
     cs = doc.xref_get_key(img_xref, "ColorSpace")[1]
     if doc.xref_get_key(img_xref, "Filter")[1] == '/DCTDecode':
         if cs == "/DeviceCMYK":
+            # Using xref_stream_raw directly produces image with inverted color
             pixmap = fitz.Pixmap(doc, img_xref)
             return "cmyk", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples)
         else:
@@ -141,7 +142,7 @@ def create_clipping_path_image(doc, image, size, image_pos, image_size):
     zoom = width / matrix_width
     commands = stream.split(b'\nW n')[0].split(b'\n')
     surface = cairo.ImageSurface(cairo.FORMAT_A1, size[0], size[1])
-    ctx = cairo.Context (surface)
+    ctx = cairo.Context(surface)
     for command in commands:
         op = command.split(b' ')
         if op[-1] == b'm':
@@ -206,12 +207,12 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     img_xref_list = []
     image_type_list = []
     mode_list = []
-    
+
+    pagenum_str = str(page.number + 1).zfill(3)
     for image in images:
         img_xref = image[0]
         width = int(doc.xref_get_key(img_xref, "Width")[1])
         height = int(doc.xref_get_key(img_xref, "Height")[1])
-        pagenum_str = str(page.number + 1).zfill(3)
         output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
         image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
         image_rect = page.get_image_rects(img_xref)[0]
@@ -243,8 +244,6 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     for it in zoom_list:
         if math.ceil(page.rect[3] * zoom) != math.ceil(page.rect[3] * it):
             print(f'警告：第{pagenum_str}頁包含多張圖片，縮放程度不同')
-
-    img_noimg = render_image(config, page_noimg, zoom)
 
     mode_merge = 'L'
     if 'RGB' in mode_list:
@@ -282,6 +281,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             img_merge.paste(gray, image_pos, mask=invert)
         else:
             img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
+    img_noimg = render_image(page_noimg, zoom)
     img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
 
     if all(image_type.startswith('mono') for image_type in image_type_list) and config['prefer-mono']:
@@ -356,12 +356,11 @@ def main():
                     continue
 
                 if not images:
-                    image = render_image(config, page, 600 / 72, alpha=False)
-                    save_pil_image(config, image, f"{output_dir}/{pagenum_str}")
-                    continue
-                img_generated = generate_image(config, doc, page, page_noimg, images, output_dir)
-                save_pil_image(config, img_generated, f"{output_dir}/{pagenum_str}")
-            except Exception as e:
+                    image = render_image(page, 600 / 72, alpha=False)
+                else:
+                    image = generate_image(config, doc, page, page_noimg, images, output_dir)
+                save_pil_image(config, image, f"{output_dir}/{pagenum_str}")
+            except Exception:
                 print(traceback.format_exc())
 
 main()
