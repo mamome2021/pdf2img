@@ -42,7 +42,7 @@ def read_config():
             elif option[0] == 'tiff-compression':
                 config['tiff-compression'] = option[1]
     except FileNotFoundError:
-        pass
+        print('警告：找不到設定檔')
     except Exception:
         print(traceback.format_exc())
     return config
@@ -79,7 +79,7 @@ def render_image(page, zoom, colorspace='GRAY', alpha=True):
     image = image.convert('LA')
     return image
 
-def extract_image(doc, img_xref, output_name):
+def extract_image(doc, img_xref, output_name, pagenum_str):
     width = int(doc.xref_get_key(img_xref, "Width")[1])
     height = int(doc.xref_get_key(img_xref, "Height")[1])
     cs_type = doc.xref_get_key(img_xref, "ColorSpace")[0]
@@ -96,7 +96,7 @@ def extract_image(doc, img_xref, output_name):
     elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
         return "mono", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif cs_type == 'xref':
-        print(output_name, "警告：xref cs")
+        print(output_name, f"警告：{pagenum_str}-{img_xref} xref cs")
         # 太難了不會做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
@@ -108,7 +108,7 @@ def extract_image(doc, img_xref, output_name):
     elif cs == "/DeviceRGB":
         return "rgb", Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
     else:
-        print(output_name,"警告：未知色彩空間", cs)
+        print(output_name,f"警告：{pagenum_str}-{img_xref}未知色彩空間", cs)
         # 其他，還沒做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
@@ -118,7 +118,7 @@ def save_extracted_image(config, doc, page, image, output_dir):
     img_xref = image[0]
     pagenum_str = str(page.number + 1).zfill(3)
     output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
-    image_type, image_extract = extract_image(doc, img_xref, output_name)
+    image_type, image_extract = extract_image(doc, img_xref, output_name, pagenum_str)
     if image_type == 'jpeg':
         with open(f"{output_name}.jpg",'wb') as f:
             f.write(image_extract)
@@ -217,13 +217,13 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
         image_rect = page.get_image_rects(img_xref)[0]
         if image_matrix[1:3] != (0, 0):
-            print(output_name, '警告：圖片旋轉或歪斜，輸出將與pdf不同')
+            print(output_name, f'警告：{pagenum_str}-{img_xref}圖片旋轉或歪斜，輸出將與pdf不同')
         zoom = width / image_matrix[0]
         zoom_y = height / image_matrix[3]
         if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
-            print('警告：圖片寬高比改變')
+            print(f'警告：{pagenum_str}-{img_xref}圖片寬高比改變')
 
-        image_type, image_extract = extract_image(doc, img_xref, output_name)
+        image_type, image_extract = extract_image(doc, img_xref, output_name, pagenum_str)
         if image_type == 'jpeg':
             if config['extract-jpeg']:
                 with open(f"{output_name}.jpg",'wb') as f:
