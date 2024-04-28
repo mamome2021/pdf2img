@@ -19,6 +19,9 @@ def read_config():
     try:
         if 'PDF2IMG_CONFIG' in os.environ:
             config_filename = os.environ['PDF2IMG_CONFIG']
+        elif getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # In PyInstaller bundle
+            config_filename = os.path.abspath(os.path.join(os.path.dirname(sys.executable), 'config-pdf2img.txt'))
         else:
             config_filename = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config-pdf2img.txt'))
         with open(config_filename, 'r', encoding='utf-8') as config_file:
