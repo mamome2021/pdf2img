@@ -47,16 +47,21 @@ def read_config():
         print(traceback.format_exc())
     return config
 
+def get_referencer_of_image(image, page):
+    ref = image[9]
+    if ref == 0:
+        # Image is directly referenced by the page
+        return page.get_contents()[0]
+    else:
+        return ref
+
 def remove_path_fill(doc, page):
     images = page.get_images(full=True)
     if len(images) == 0:
         return
     image = images[0]
     image_name = image[7]
-    ref = image[9]
-    if ref == 0:
-        # Image is directly referenced by the page
-        ref = page.get_contents()[0]
+    ref = get_referencer_of_image(image, page)
     stream = doc.xref_stream(ref)
     stream_split = stream.split(f'/{image_name} Do\n'.encode(), 1)
     stream_split[0] = stream_split[0].replace(b'\nf\n', b'\nn\n').replace(b'\nf*\n', b'\nn\n')
@@ -125,11 +130,11 @@ def save_extracted_image(config, doc, page, image, output_dir):
     else:
         save_pil_image(config, image_extract, output_name)
 
-def create_clipping_path_image(doc, image, size, image_pos, image_size):
+def create_clipping_path_image(doc, page, image, size, image_pos, image_size):
     image_name = image[7]
     image_xref = image[0]
     width = int(doc.xref_get_key(image_xref, "Width")[1])
-    referencer = image[9]
+    referencer = get_referencer_of_image(image, page)
     stream = doc.xref_stream(referencer).split(f'\n/{image_name} Do\n'.encode())[0].split(b'\nQ\n')[-1]
     if not b'\nW n\n' in stream:
         # Clipping path is not set
@@ -273,7 +278,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         if config['no-crop']:
             clipping_path = Image.new('1', image_extract_list[index].size, 'white')
         else:
-            clipping_path = create_clipping_path_image(doc, images[index], (width_merge, height_merge), image_pos, image_extract_list[index].size)
+            clipping_path = create_clipping_path_image(doc, page, images[index], (width_merge, height_merge), image_pos, image_extract_list[index].size)
         if image_type_list[index] == 'mono-mask':
             clipped_image = create_clipped_image_for_imagemask(image_extract_list[index], clipping_path)
             gray, alpha = clipped_image.split()
