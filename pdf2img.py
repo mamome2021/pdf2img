@@ -101,7 +101,7 @@ def extract_image(doc, img_xref, output_name, pagenum_str):
     elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
         return "mono", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif cs_type == 'xref':
-        print(output_name, f"警告：{pagenum_str}-{img_xref} xref cs")
+        print(f"警告：{pagenum_str}-{img_xref} xref cs")
         # 太難了不會做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
@@ -113,7 +113,7 @@ def extract_image(doc, img_xref, output_name, pagenum_str):
     elif cs == "/DeviceRGB":
         return "rgb", Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
     else:
-        print(output_name,f"警告：{pagenum_str}-{img_xref}未知色彩空間", cs)
+        print(f"警告：{pagenum_str}-{img_xref}未知色彩空間", cs)
         # 其他，還沒做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
@@ -222,7 +222,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
         image_rect = page.get_image_rects(img_xref)[0]
         if image_matrix[1:3] != (0, 0):
-            print(output_name, f'警告：{pagenum_str}-{img_xref}圖片旋轉或歪斜，輸出將與pdf不同')
+            print(f'警告：{pagenum_str}-{img_xref}圖片旋轉或歪斜，輸出將與pdf不同')
         zoom = width / image_matrix[0]
         zoom_y = height / image_matrix[3]
         if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
