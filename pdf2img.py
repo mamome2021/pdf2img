@@ -331,7 +331,7 @@ def save_pil_image(config, image, output_name):
 def main():
     if len(sys.argv) == 1:
         print('請選擇pdf檔')
-        exit(0)
+        sys.exit(0)
     
     config = read_config()
 
