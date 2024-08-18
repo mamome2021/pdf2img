@@ -15,7 +15,7 @@ def read_config():
               'small-output': False,
               'prefer-mono': False,
               'save-png': False,
-              'tiff-compression': 'tiff_lzw'}
+              'save-tiff': ''}
     try:
         if 'PDF2IMG_CONFIG' in os.environ:
             config_filename = os.environ['PDF2IMG_CONFIG']
@@ -42,8 +42,8 @@ def read_config():
                 config['prefer-mono'] = True
             elif option[0] == 'save-png':
                 config['save-png'] = True
-            elif option[0] == 'tiff-compression':
-                config['tiff-compression'] = option[1]
+            elif option[0] == 'save-tiff':
+                config['save-tiff'] = option[1]
     except FileNotFoundError:
         print('警告：找不到設定檔')
     except Exception:
@@ -302,33 +302,26 @@ def save_pil_image(config, image, output_name):
             image.save(f"{output_name}.tiff", compression='tiff_lzw')
         elif image.mode == '1':
             io_group4=BytesIO()
-            io_png=BytesIO()
-            io_lzw=BytesIO()
+            io_webp=BytesIO()
             image.save(io_group4, format='tiff', compression='group4')
-            image.save(io_png, format='png')
-            image.save(io_lzw, format='tiff', compression='tiff_lzw')
-            if io_lzw.getbuffer().nbytes < io_png.getbuffer().nbytes and io_lzw.getbuffer().nbytes < io_group4.getbuffer().nbytes:
-                image.save(f"{output_name}.tiff", compression='tiff_lzw')
-            elif io_group4.getbuffer().nbytes < io_png.getbuffer().nbytes:
+            image.save(io_webp, format='webp', lossless=True)
+            if io_group4.getbuffer().nbytes < io_webp.getbuffer().nbytes:
                 image.save(f"{output_name}.tiff", compression='group4')
             else:
-                image.save(f"{output_name}.png")
+                image.save(f"{output_name}.webp", lossless=True)
         else:
-            io_lzw=BytesIO()
-            io_png=BytesIO()
-            image.save(io_lzw, format='tiff', compression='tiff_lzw')
-            image.save(io_png, format='png')
-            if io_lzw.getbuffer().nbytes < io_png.getbuffer().nbytes:
-                image.save(f"{output_name}.tiff", compression='tiff_lzw')
-            else:
-                image.save(f"{output_name}.png")
+            image.save(f"{output_name}.webp", lossless=True)
     else:
         if config['save-png']:
             if image.mode == 'CMYK':
                 image = image.convert('RGB')
             image.save(f"{output_name}.png")
+        elif config['save-tiff']:
+            image.save(f"{output_name}.tiff", compression=config['save-tiff'])
         else:
-            image.save(f"{output_name}.tiff", compression=config['tiff-compression'])
+            if image.mode == 'CMYK':
+                image = image.convert('RGB')
+            image.save(f"{output_name}.webp", lossless=True)
 
 def main():
     if len(sys.argv) == 1:

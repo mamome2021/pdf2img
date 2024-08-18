@@ -9,7 +9,7 @@
 #若圖片為jpeg，也提取出未疊加渲染圖的原圖
 #extract-jpeg
 
-#輸出檔案時，選擇較小的格式。會忽略prefer-png和tiff-compression選項
+#輸出檔案時，選擇較小的格式。會忽略save-png和save-tiff選項
 #small-output
 
 #若原圖為位圖，以位圖格式儲存
@@ -18,5 +18,5 @@
 #以png格式儲存（會將CMYK轉為RGB）
 #save-png
 
-#tiff壓縮方式，參考https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#tiff-saving
-#tiff-compression tiff_lzw
+#以tiff格式儲存，並指定壓縮方式，如果不支持圖片色彩空間將無法儲存。參考https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#tiff-saving
+#save-tiff tiff_lzw
