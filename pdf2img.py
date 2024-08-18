@@ -87,7 +87,7 @@ def render_image(page, zoom, colorspace='GRAY', alpha=True):
     image = image.convert('LA')
     return image
 
-def extract_image(doc, img_xref, output_name, pagenum_str):
+def extract_image(doc, img_xref, pagenum_str):
     width = int(doc.xref_get_key(img_xref, "Width")[1])
     height = int(doc.xref_get_key(img_xref, "Height")[1])
     cs_type = doc.xref_get_key(img_xref, "ColorSpace")[0]
@@ -126,7 +126,7 @@ def save_extracted_image(config, doc, page, image, output_dir):
     img_xref = image[0]
     pagenum_str = str(page.number + 1).zfill(3)
     output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
-    image_type, image_extract = extract_image(doc, img_xref, output_name, pagenum_str)
+    image_type, image_extract = extract_image(doc, img_xref, pagenum_str)
     if image_type == 'jpeg':
         with open(f"{output_name}.jpg",'wb') as f:
             f.write(image_extract)
@@ -221,7 +221,6 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         img_xref = image[0]
         width = int(doc.xref_get_key(img_xref, "Width")[1])
         height = int(doc.xref_get_key(img_xref, "Height")[1])
-        output_name = f"{output_dir}/{pagenum_str}-{img_xref}"
         image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
         image_rect = page.get_image_rects(img_xref)[0]
         if image_matrix[1:3] != (0, 0):
@@ -231,10 +230,10 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
             print(f'警告：{pagenum_str}-{img_xref}圖片寬高比改變')
 
-        image_type, image_extract = extract_image(doc, img_xref, output_name, pagenum_str)
+        image_type, image_extract = extract_image(doc, img_xref, pagenum_str)
         if image_type == 'jpeg':
             if config['extract-jpeg']:
-                with open(f"{output_name}.jpg",'wb') as f:
+                with open(f"{output_dir}/{pagenum_str}-{img_xref}.jpg",'wb') as f:
                     f.write(image_extract)
             image_extract = Image.open(BytesIO(image_extract))
         elif image_type.startswith('mono'):
