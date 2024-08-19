@@ -18,6 +18,9 @@
 #若原圖為位圖，以位圖格式儲存
 #prefer-mono
 
+#以JPEG XL格式儲存（會將CMYK轉為RGB）
+#save-jxl
+
 #以png格式儲存（會將CMYK轉為RGB）
 #save-png
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-import sys
-import os
-import traceback
-import fitz
-from PIL import Image, ImageOps
 from io import BytesIO
 import math
+import os
+import sys
+import traceback
+
 import cairo
+import fitz
+from PIL import Image, ImageOps
+import pillow_jxl
+
 
 def read_config():
     config = {'only-extract': False,
@@ -15,6 +18,7 @@ def read_config():
               'extract-jpeg': False,
               'small-output': False,
               'prefer-mono': False,
+              'save-jxl': False,
               'save-png': False,
               'save-tiff': ''}
     try:
@@ -43,6 +47,8 @@ def read_config():
                 config['small-output'] = True
             elif option[0] == 'prefer-mono':
                 config['prefer-mono'] = True
+            elif option[0] == 'save-jxl':
+                config['save-jxl'] = True
             elif option[0] == 'save-png':
                 config['save-png'] = True
             elif option[0] == 'save-tiff':
@@ -335,6 +341,12 @@ def save_pil_image(config, image, output_name):
             if image.mode == 'CMYK':
                 image = image.convert('RGB')
             image.save(f"{output_name}.png")
+        elif config['save-jxl']:
+            if image.mode == '1':
+                image = image.convert('L')
+            if image.mode == 'CMYK':
+                image = image.convert('RGB')
+            image.save(f"{output_name}.jxl", lossless=True)
         elif config['save-tiff']:
             image.save(f"{output_name}.tiff", compression=config['save-tiff'])
         else:
