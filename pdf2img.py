@@ -83,6 +83,9 @@ def find_largest_image(images):
     return index
 
 def render_image(page, zoom, colorspace='GRAY', alpha=True):
+    if alpha == True and colorspace == 'CMYK':
+        #CMYK with alpha channel is not supported by pillow
+        colorspace = 'RGB'
     if colorspace == 'L':
         colorspace = 'GRAY'
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
@@ -304,7 +307,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             img_merge.paste(gray, image_pos, mask=invert)
         else:
             img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
-    img_noimg = render_image(page_noimg, zoom)
+    img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge)
     img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
 
     if all(image_type.startswith('mono') for image_type in image_type_list) and config['prefer-mono']:
