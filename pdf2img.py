@@ -10,6 +10,7 @@ import cairo
 
 def read_config():
     config = {'only-extract': False,
+              'render-image': False,
               'no-crop': False,
               'extract-jpeg': False,
               'small-output': False,
@@ -32,6 +33,8 @@ def read_config():
                 continue
             elif option[0] == 'only-extract':
                 config['only-extract'] = True
+            elif option[0] == 'render-image':
+                config['render-image'] = True
             elif option[0] == 'no-crop':
                 config['no-crop'] = True
             elif option[0] == 'extract-jpeg':
@@ -80,11 +83,15 @@ def find_largest_image(images):
     return index
 
 def render_image(page, zoom, colorspace='GRAY', alpha=True):
+    if colorspace == 'L':
+        colorspace = 'GRAY'
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
+    if colorspace == 'GRAY':
+        colorspace = 'L'
     if not alpha:
-        return Image.frombytes('L', (pixmap.width, pixmap.height), pixmap.samples)
-    image = Image.frombytes('La', (pixmap.width, pixmap.height), pixmap.samples)
-    image = image.convert('LA')
+        return Image.frombytes(colorspace, (pixmap.width, pixmap.height), pixmap.samples)
+    image = Image.frombytes(colorspace + 'a', (pixmap.width, pixmap.height), pixmap.samples)
+    image = image.convert(colorspace + 'A')
     return image
 
 def extract_image(doc, img_xref, pagenum_str):
@@ -215,6 +222,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     img_xref_list = []
     image_type_list = []
     mode_list = []
+    has_warning = False
 
     pagenum_str = str(page.number + 1).zfill(3)
     for image in images:
@@ -225,10 +233,12 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         image_rect = page.get_image_rects(img_xref)[0]
         if image_matrix[1:3] != (0, 0):
             print(f'警告：{pagenum_str}-{img_xref}圖片旋轉或歪斜，輸出將與pdf不同')
+            has_warning = True
         zoom = width / image_matrix[0]
         zoom_y = height / image_matrix[3]
         if zoom / zoom_y > 1.01 or zoom_y / zoom > 1.01:
             print(f'警告：{pagenum_str}-{img_xref}圖片寬高比改變')
+            has_warning = True
 
         image_type, image_extract = extract_image(doc, img_xref, pagenum_str)
         if image_type == 'jpeg':
@@ -251,6 +261,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     for it in zoom_list:
         if math.ceil(page.rect[3] * zoom) != math.ceil(page.rect[3] * it):
             print(f'警告：第{pagenum_str}頁包含多張圖片，縮放程度不同')
+            has_warning = True
 
     mode_merge = 'L'
     if 'RGB' in mode_list:
@@ -262,6 +273,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     if config['no-crop']:
         if len(images) > 1:
             print(f"警告：第{pagenum_str}頁包含多張圖片，使用'no-crop'選項可能導致圖片重疊")
+            has_warning = True
         for image_rect in image_rect_list:
             if image_rect[0] < rect_merge[0]:
                 rect_merge[0] = image_rect[0]
@@ -271,6 +283,10 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
                 rect_merge[2] = image_rect[2]
             if image_rect[3] > rect_merge[3]:
                 rect_merge[3] = image_rect[3]
+
+    if has_warning and config['render-image']:
+        print(f"第{pagenum_str}頁使用渲染方式產生圖片")
+        return render_image(page, zoom, colorspace=mode_merge, alpha=False)
 
     width_merge = math.ceil((rect_merge[2] - rect_merge[0]) * zoom)
     height_merge = math.ceil((rect_merge[3] - rect_merge[1]) * zoom)

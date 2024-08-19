@@ -3,6 +3,9 @@
 #只提取原圖，不疊加渲染圖
 #only-extract
 
+#如果無法完美提取，則使用渲染方式產生圖片
+#render-image
+
 #不裁切超出pdf頁面的原圖，並忽略clipping path
 #no-crop
 
