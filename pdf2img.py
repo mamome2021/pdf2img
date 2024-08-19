@@ -359,7 +359,7 @@ def main():
                 page.delete_image(xref)
         doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
         if 'PDF2IMG_OUTPUT' in os.environ:
-            output_dir = os.environ['PDF2IMG_OUTPUT']
+            output_dir = os.path.join(os.environ['PDF2IMG_OUTPUT'], file + "-img")
         else:
             output_dir = file + "-img"
         os.makedirs(output_dir, exist_ok=True)
