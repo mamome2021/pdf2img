@@ -16,7 +16,6 @@ def read_config():
               'render-image': False,
               'no-crop': False,
               'extract-jpeg': False,
-              'small-output': False,
               'prefer-mono': False,
               'save-jxl': False,
               'save-png': False,
@@ -43,8 +42,6 @@ def read_config():
                 config['no-crop'] = True
             elif option[0] == 'extract-jpeg':
                 config['extract-jpeg'] = True
-            elif option[0] == 'small-output':
-                config['small-output'] = True
             elif option[0] == 'prefer-mono':
                 config['prefer-mono'] = True
             elif option[0] == 'save-jxl':
@@ -322,37 +319,22 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     return img_merge
 
 def save_pil_image(config, image, output_name):
-    if config['small-output']:
+    if config['save-png']:
         if image.mode == 'CMYK':
-            image.save(f"{output_name}.tiff", compression='tiff_lzw')
-        elif image.mode == '1':
-            io_group4=BytesIO()
-            io_webp=BytesIO()
-            image.save(io_group4, format='tiff', compression='group4')
-            image.save(io_webp, format='webp', lossless=True)
-            if io_group4.getbuffer().nbytes < io_webp.getbuffer().nbytes:
-                image.save(f"{output_name}.tiff", compression='group4')
-            else:
-                image.save(f"{output_name}.webp", lossless=True)
-        else:
-            image.save(f"{output_name}.webp", lossless=True)
+            image = image.convert('RGB')
+        image.save(f"{output_name}.png")
+    elif config['save-jxl']:
+        if image.mode == '1':
+            image = image.convert('L')
+        if image.mode == 'CMYK':
+            image = image.convert('RGB')
+        image.save(f"{output_name}.jxl", lossless=True)
+    elif config['save-tiff']:
+        image.save(f"{output_name}.tiff", compression=config['save-tiff'])
     else:
-        if config['save-png']:
-            if image.mode == 'CMYK':
-                image = image.convert('RGB')
-            image.save(f"{output_name}.png")
-        elif config['save-jxl']:
-            if image.mode == '1':
-                image = image.convert('L')
-            if image.mode == 'CMYK':
-                image = image.convert('RGB')
-            image.save(f"{output_name}.jxl", lossless=True)
-        elif config['save-tiff']:
-            image.save(f"{output_name}.tiff", compression=config['save-tiff'])
-        else:
-            if image.mode == 'CMYK':
-                image = image.convert('RGB')
-            image.save(f"{output_name}.webp", lossless=True)
+        if image.mode == 'CMYK':
+            image = image.convert('RGB')
+        image.save(f"{output_name}.webp", lossless=True)
 
 def main():
     if len(sys.argv) == 1:
