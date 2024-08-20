@@ -336,6 +336,31 @@ def save_pil_image(config, image, output_name):
             image = image.convert('RGB')
         image.save(f"{output_name}.webp", lossless=True)
 
+def convert_page(config, file, pagenum, output_dir):
+    try:
+        doc = fitz.open(file)
+        page = doc[pagenum]
+        images = page.get_images(full=True)
+        if config['only-extract']:
+            for image in images:
+                save_extracted_image(config, doc, page, image, output_dir)
+            return
+        if not images:
+            image = render_image(page, 600 / 72, alpha=False)
+        else:
+            doc_noimg = fitz.open(file)
+            page_noimg = doc_noimg[pagenum]
+            remove_path_fill(doc_noimg, page_noimg)
+            for image in page_noimg.get_images():
+                xref = image[0]
+                page_noimg.delete_image(xref)
+            doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
+            page_noimg = doc_noimg[pagenum]
+            image = generate_image(config, doc, page, page_noimg, images, output_dir)
+        save_pil_image(config, image, f"{output_dir}/{str(pagenum + 1).zfill(3)}")
+    except Exception:
+        print(traceback.format_exc())
+
 def main():
     if len(sys.argv) == 1:
         print('請選擇pdf檔')
@@ -344,37 +369,14 @@ def main():
     config = read_config()
 
     for file in sys.argv[1:]:
-        doc = fitz.open(file)
-        doc_noimg = fitz.open(file)
-        for page in doc_noimg:
-            remove_path_fill(doc_noimg, page)
-            for image in page.get_images():
-                xref = image[0]
-                page.delete_image(xref)
-        doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
         if 'PDF2IMG_OUTPUT' in os.environ:
             output_dir = os.path.join(os.environ['PDF2IMG_OUTPUT'], file + "-img")
         else:
             output_dir = file + "-img"
         os.makedirs(output_dir, exist_ok=True)
-
-        for pagenum, page in enumerate(doc):
-            try:
-                page_noimg = doc_noimg[pagenum]
-                images = page.get_images(full=True)
-                pagenum_str = str(pagenum + 1).zfill(3)
-
-                if config['only-extract']:
-                    for image in images:
-                        save_extracted_image(config, doc, page, image, output_dir)
-                    continue
-
-                if not images:
-                    image = render_image(page, 600 / 72, alpha=False)
-                else:
-                    image = generate_image(config, doc, page, page_noimg, images, output_dir)
-                save_pil_image(config, image, f"{output_dir}/{pagenum_str}")
-            except Exception:
-                print(traceback.format_exc())
+        with fitz.open(file) as doc:
+            page_count = doc.page_count
+        for pagenum in range(page_count):
+            convert_page(config, file, pagenum, output_dir)
 
 main()
