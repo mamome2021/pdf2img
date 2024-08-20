@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from io import BytesIO
+from itertools import repeat
 import math
+from multiprocessing import Pool
 import os
 import sys
 import traceback
@@ -12,7 +14,8 @@ import pillow_jxl
 
 
 def read_config():
-    config = {'only-extract': False,
+    config = {'processes': 1,
+              'only-extract': False,
               'render-image': False,
               'no-crop': False,
               'extract-jpeg': False,
@@ -34,6 +37,8 @@ def read_config():
             option = line.split()
             if len(option) == 0:
                 continue
+            elif option[0] == 'processes':
+                config['processes'] = int(option[1])
             elif option[0] == 'only-extract':
                 config['only-extract'] = True
             elif option[0] == 'render-image':
@@ -338,26 +343,26 @@ def save_pil_image(config, image, output_name):
 
 def convert_page(config, file, pagenum, output_dir):
     try:
-        doc = fitz.open(file)
-        page = doc[pagenum]
-        images = page.get_images(full=True)
-        if config['only-extract']:
-            for image in images:
-                save_extracted_image(config, doc, page, image, output_dir)
-            return
-        if not images:
-            image = render_image(page, 600 / 72, alpha=False)
-        else:
-            doc_noimg = fitz.open(file)
-            page_noimg = doc_noimg[pagenum]
-            remove_path_fill(doc_noimg, page_noimg)
-            for image in page_noimg.get_images():
-                xref = image[0]
-                page_noimg.delete_image(xref)
-            doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
-            page_noimg = doc_noimg[pagenum]
-            image = generate_image(config, doc, page, page_noimg, images, output_dir)
-        save_pil_image(config, image, f"{output_dir}/{str(pagenum + 1).zfill(3)}")
+        with fitz.open(file) as doc:
+            page = doc[pagenum]
+            images = page.get_images(full=True)
+            if config['only-extract']:
+                for image in images:
+                    save_extracted_image(config, doc, page, image, output_dir)
+                return
+            if not images:
+                image = render_image(page, 600 / 72, alpha=False)
+            else:
+                with fitz.open(file) as doc_noimg:
+                    page_noimg = doc_noimg[pagenum]
+                    remove_path_fill(doc_noimg, page_noimg)
+                    for image in page_noimg.get_images():
+                        xref = image[0]
+                        page_noimg.delete_image(xref)
+                    doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
+                    page_noimg = doc_noimg[pagenum]
+                    image = generate_image(config, doc, page, page_noimg, images, output_dir)
+            save_pil_image(config, image, f"{output_dir}/{str(pagenum + 1).zfill(3)}")
     except Exception:
         print(traceback.format_exc())
 
@@ -376,7 +381,7 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
         with fitz.open(file) as doc:
             page_count = doc.page_count
-        for pagenum in range(page_count):
-            convert_page(config, file, pagenum, output_dir)
+        with Pool(processes=config['processes']) as pool:
+            pool.starmap(convert_page, zip(repeat(config), repeat(file), range(page_count), repeat(output_dir)))
 
 main()
