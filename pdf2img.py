@@ -14,7 +14,7 @@ import pillow_jxl
 
 
 def read_config():
-    config = {'processes': 1,
+    config = {'processes': 2,
               'only-extract': False,
               'render-image': False,
               'no-crop': False,
