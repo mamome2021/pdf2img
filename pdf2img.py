@@ -2,7 +2,7 @@
 from io import BytesIO
 from itertools import repeat
 import math
-from multiprocessing import Pool
+from multiprocessing import Pool, freeze_support
 import os
 import sys
 import traceback
@@ -393,4 +393,6 @@ def main():
         with Pool(processes=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
             pool.starmap(convert_page, zip(repeat(config), range(page_count), repeat(output_dir)))
 
-main()
+if __name__ == '__main__':
+    freeze_support()
+    main()
