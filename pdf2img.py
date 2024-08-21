@@ -341,28 +341,37 @@ def save_pil_image(config, image, output_name):
             image = image.convert('RGB')
         image.save(f"{output_name}.webp", lossless=True)
 
-def convert_page(config, file, pagenum, output_dir):
+def convert_page(config, pagenum, output_dir):
     try:
-        with fitz.open(file) as doc:
-            page = doc[pagenum]
-            images = page.get_images(full=True)
-            if config['only-extract']:
-                for image in images:
-                    save_extracted_image(config, doc, page, image, output_dir)
-                return
-            if not images:
-                image = render_image(page, 600 / 72, alpha=False)
-            else:
-                with fitz.open(file) as doc_noimg:
-                    page_noimg = doc_noimg[pagenum]
-                    remove_path_fill(doc_noimg, page_noimg)
-                    for image in page_noimg.get_images():
-                        xref = image[0]
-                        page_noimg.delete_image(xref)
-                    doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
-                    page_noimg = doc_noimg[pagenum]
-                    image = generate_image(config, doc, page, page_noimg, images, output_dir)
-            save_pil_image(config, image, f"{output_dir}/{str(pagenum + 1).zfill(3)}")
+        global doc
+        page = doc[pagenum]
+        images = page.get_images(full=True)
+        if config['only-extract']:
+            for image in images:
+                save_extracted_image(config, doc, page, image, output_dir)
+            return
+        if not images:
+            image = render_image(page, 600 / 72, alpha=False)
+        else:
+            global doc_noimg
+            page_noimg = doc_noimg[pagenum]
+            image = generate_image(config, doc, page, page_noimg, images, output_dir)
+        save_pil_image(config, image, f"{output_dir}/{str(pagenum + 1).zfill(3)}")
+    except Exception:
+        print(traceback.format_exc())
+
+def convert_page_init(file):
+    try:
+        global doc
+        global doc_noimg
+        doc = fitz.open(file)
+        doc_noimg = fitz.open(file)
+        for page in doc_noimg:
+            remove_path_fill(doc_noimg, page)
+            for image in page.get_images():
+                xref = image[0]
+                page.delete_image(xref)
+        doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
     except Exception:
         print(traceback.format_exc())
 
@@ -370,7 +379,7 @@ def main():
     if len(sys.argv) == 1:
         print('請選擇pdf檔')
         sys.exit(0)
-    
+
     config = read_config()
 
     for file in sys.argv[1:]:
@@ -381,7 +390,7 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
         with fitz.open(file) as doc:
             page_count = doc.page_count
-        with Pool(processes=config['processes']) as pool:
-            pool.starmap(convert_page, zip(repeat(config), repeat(file), range(page_count), repeat(output_dir)))
+        with Pool(processes=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
+            pool.starmap(convert_page, zip(repeat(config), range(page_count), repeat(output_dir)))
 
 main()
