@@ -350,7 +350,7 @@ def convert_page(config, pagenum, output_dir):
         if config['only-extract']:
             for image in images:
                 save_extracted_image(config, doc, page, image, output_dir)
-            return
+            return 1
         if not images:
             image = render_image(page, 600 / 72, alpha=False)
         else:
@@ -396,9 +396,9 @@ def main():
         # Use ProcessPoolExecutor instead of multiprocessing.Pool
         # to detect error of process killed due to low memory
         with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
-            for result in pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir)):
+            for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir))):
                 if result != 1:
-                    print(f'第{result + 1}頁轉換失敗')
+                    print(f'第{idx + 1}頁轉換失敗')
 
 if __name__ == '__main__':
     freeze_support()
