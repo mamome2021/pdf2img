@@ -239,10 +239,10 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     pagenum_str = str(page.number + 1).zfill(3)
     for image in images:
         img_xref = image[0]
+        img_name = image[7]
         width = int(doc.xref_get_key(img_xref, "Width")[1])
         height = int(doc.xref_get_key(img_xref, "Height")[1])
-        image_matrix = page.get_image_rects(img_xref, transform=True)[0][1]
-        image_rect = page.get_image_rects(img_xref)[0]
+        image_rect, image_matrix = page.get_image_bbox(img_name, transform=True)
         if image_matrix[1:3] != (0, 0):
             print(f'警告：{pagenum_str}-{img_xref}圖片旋轉或歪斜，輸出將與pdf不同')
             has_warning = True
@@ -258,8 +258,6 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
                 with open(f"{output_dir}/{pagenum_str}-{img_xref}.jpg",'wb') as f:
                     f.write(image_extract)
             image_extract = Image.open(BytesIO(image_extract))
-        elif image_type.startswith('mono'):
-            image_extract = image_extract.convert('L')
 
         zoom_list.append(zoom)
         image_extract_list.append(image_extract)
