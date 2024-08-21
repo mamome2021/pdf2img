@@ -101,8 +101,8 @@ def render_image(page, zoom, colorspace='GRAY', alpha=True):
     if colorspace == 'GRAY':
         colorspace = 'L'
     if not alpha:
-        return Image.frombytes(colorspace, (pixmap.width, pixmap.height), pixmap.samples)
-    image = Image.frombytes(colorspace + 'a', (pixmap.width, pixmap.height), pixmap.samples)
+        return Image.frombytes(colorspace, (pixmap.width, pixmap.height), pixmap.samples_mv)
+    image = Image.frombytes(colorspace + 'a', (pixmap.width, pixmap.height), pixmap.samples_mv)
     image = image.convert(colorspace + 'A')
     return image
 
@@ -115,7 +115,7 @@ def extract_image(doc, img_xref, pagenum_str):
         if cs == "/DeviceCMYK":
             # Using xref_stream_raw directly produces image with inverted color
             pixmap = fitz.Pixmap(doc, img_xref)
-            return "cmyk", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples)
+            return "cmyk", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples_mv)
         else:
             return "jpeg", doc.xref_stream_raw(img_xref)
     elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
