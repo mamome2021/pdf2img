@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
 from itertools import repeat
 import math
-from multiprocessing import Pool, freeze_support
+from multiprocessing import freeze_support
 import os
 import sys
 import traceback
@@ -357,8 +358,10 @@ def convert_page(config, pagenum, output_dir):
             page_noimg = doc_noimg[pagenum]
             image = generate_image(config, doc, page, page_noimg, images, output_dir)
         save_pil_image(config, image, f"{output_dir}/{str(pagenum + 1).zfill(3)}")
+        return 1
     except Exception:
         print(traceback.format_exc())
+        return 0
 
 def convert_page_init(file):
     try:
@@ -390,8 +393,12 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
         with fitz.open(file) as doc:
             page_count = doc.page_count
-        with Pool(processes=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
-            pool.starmap(convert_page, zip(repeat(config), range(page_count), repeat(output_dir)))
+        # Use ProcessPoolExecutor instead of multiprocessing.Pool
+        # to detect error of process killed due to low memory
+        with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
+            for result in pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir)):
+                if result != 1:
+                    print(f'第{result + 1}頁轉換失敗')
 
 if __name__ == '__main__':
     freeze_support()
