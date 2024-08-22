@@ -241,7 +241,7 @@ def create_clipping_path_image(doc, page, image, size, image_pos, image_size):
     return clipping_path
 
 def create_clipped_image_for_imagemask(imagemask, clipping_path):
-    image_clipped = Image.new('LA', imagemask.size, (255, 0))
+    image_clipped = Image.new('L', imagemask.size, 255)
     image_clipped.paste(imagemask, mask=clipping_path)
     return image_clipped
 
@@ -326,7 +326,6 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             clipped_image = create_clipped_image_for_imagemask(image_extract, clipping_path)
             del image_extract
             del clipping_path
-            clipped_image = clipped_image.split()[0]
             invert = ImageOps.invert(clipped_image)
             img_merge.paste(clipped_image, image_pos, mask=invert)
             del clipped_image
