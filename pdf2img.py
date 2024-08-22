@@ -241,7 +241,7 @@ def create_clipping_path_image(doc, page, image, size, image_pos, image_size):
     return clipping_path
 
 def create_clipped_image_for_imagemask(imagemask, clipping_path):
-    image_clipped = Image.new('L', imagemask.size, 255)
+    image_clipped = Image.new('1', imagemask.size, 255)
     image_clipped.paste(imagemask, mask=clipping_path)
     return image_clipped
 
