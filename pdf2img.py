@@ -106,6 +106,25 @@ def render_image(page, zoom, colorspace='GRAY', alpha=True):
     image = image.convert(colorspace + 'A')
     return image
 
+
+def get_image_colorspace(doc, img_xref):
+    cs_type, cs = doc.xref_get_key(img_xref, "ColorSpace")
+    if doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
+        return '1'
+    elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
+        return '1'
+    elif cs_type == 'xref':
+        return 'RGB'
+    elif cs == "/DeviceCMYK":
+        return 'CMYK'
+    elif cs == "/DeviceGray":
+        return 'L'
+    elif cs == "/DeviceRGB":
+        return 'RGB'
+    else:
+        return 'RGB'
+
+
 def extract_image(doc, img_xref, pagenum_str):
     width = int(doc.xref_get_key(img_xref, "Width")[1])
     height = int(doc.xref_get_key(img_xref, "Height")[1])
@@ -115,31 +134,31 @@ def extract_image(doc, img_xref, pagenum_str):
         if cs == "/DeviceCMYK":
             # Using xref_stream_raw directly produces image with inverted color
             pixmap = fitz.Pixmap(doc, img_xref)
-            return "cmyk", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples_mv)
+            return "pil", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples_mv)
         else:
             return "jpeg", doc.xref_stream_raw(img_xref)
     elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
-        return "mono-mask", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
+        return "mask", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
-        return "mono", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
+        return "pil", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif cs_type == 'xref':
         print(f"警告：{pagenum_str}-{img_xref} xref cs")
         # 太難了不會做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
-        return "rgb", Image.open(BytesIO(img_data))
+        return "pil", Image.open(BytesIO(img_data))
     elif cs == "/DeviceCMYK":
-        return "cmyk", Image.frombytes('CMYK', (width, height), doc.xref_stream(img_xref))
+        return "pil", Image.frombytes('CMYK', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceGray":
-        return "gray", Image.frombytes('L', (width, height), doc.xref_stream(img_xref))
+        return "pil", Image.frombytes('L', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceRGB":
-        return "rgb", Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
+        return "pil", Image.frombytes('RGB', (width, height), doc.xref_stream(img_xref))
     else:
         print(f"警告：{pagenum_str}-{img_xref}未知色彩空間", cs)
         # 其他，還沒做，用第一版的方法
         img_dict = doc.extract_image(img_xref)
         img_data = img_dict["image"]
-        return "rgb", Image.open(BytesIO(img_data))
+        return "pil", Image.open(BytesIO(img_data))
 
 def save_extracted_image(config, doc, page, image, output_dir):
     img_xref = image[0]
@@ -228,14 +247,12 @@ def create_clipped_image_for_imagemask(imagemask, clipping_path):
 
 def generate_image(config, doc, page, page_noimg, images, output_dir):
     zoom_list = []
-    image_extract_list = []
     image_matrix_list = []
     image_rect_list = []
-    img_xref_list = []
-    image_type_list = []
-    mode_list = []
     has_warning = False
 
+    is_mono = True
+    mode_merge = 'L'
     pagenum_str = str(page.number + 1).zfill(3)
     for image in images:
         img_xref = image[0]
@@ -252,32 +269,23 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             print(f'警告：{pagenum_str}-{img_xref}圖片寬高比改變')
             has_warning = True
 
-        image_type, image_extract = extract_image(doc, img_xref, pagenum_str)
-        if image_type == 'jpeg':
-            if config['extract-jpeg']:
-                with open(f"{output_dir}/{pagenum_str}-{img_xref}.jpg",'wb') as f:
-                    f.write(image_extract)
-            image_extract = Image.open(BytesIO(image_extract))
+        image_colorspace = get_image_colorspace(doc, img_xref)
+        if image_colorspace != '1':
+            is_mono = False
+        if mode_merge =='L' and image_colorspace == 'CMYK':
+            mode_merge = 'CMYK'
+        if image_colorspace == 'RGB':
+            mode_merge = 'RGB'
 
         zoom_list.append(zoom)
-        image_extract_list.append(image_extract)
         image_matrix_list.append(image_matrix)
         image_rect_list.append(image_rect)
-        img_xref_list.append(img_xref)
-        image_type_list.append(image_type)
-        mode_list.append(image_extract.mode)
 
     zoom = zoom_list[find_largest_image(images)]
     for it in zoom_list:
         if math.ceil(page.rect[3] * zoom) != math.ceil(page.rect[3] * it):
             print(f'警告：第{pagenum_str}頁包含多張圖片，縮放程度不同')
             has_warning = True
-
-    mode_merge = 'L'
-    if 'RGB' in mode_list:
-        mode_merge = 'RGB'
-    elif 'CMYK' in mode_list:
-        mode_merge = 'CMYK'
 
     rect_merge = page.rect
     if config['no-crop']:
@@ -302,22 +310,34 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
     height_merge = math.ceil((rect_merge[3] - rect_merge[1]) * zoom)
     img_merge = Image.new(mode_merge, (width_merge, height_merge), 'white')
     for index in range(len(images)):
+        img_xref = images[index][0]
+        image_type, image_extract = extract_image(doc, img_xref, pagenum_str)
+        if image_type == 'jpeg':
+            if config['extract-jpeg']:
+                with open(f"{output_dir}/{pagenum_str}-{img_xref}.jpg",'wb') as f:
+                    f.write(image_extract)
+            image_extract = Image.open(BytesIO(image_extract))
         image_pos = (round((image_matrix_list[index][4] - rect_merge[0]) * zoom), round((image_matrix_list[index][5] - rect_merge[1]) * zoom))
         if config['no-crop']:
-            clipping_path = Image.new('1', image_extract_list[index].size, 'white')
+            clipping_path = Image.new('1', image_extract.size, 'white')
         else:
-            clipping_path = create_clipping_path_image(doc, page, images[index], (width_merge, height_merge), image_pos, image_extract_list[index].size)
-        if image_type_list[index] == 'mono-mask':
-            clipped_image = create_clipped_image_for_imagemask(image_extract_list[index], clipping_path)
-            gray, alpha = clipped_image.split()
-            invert = ImageOps.invert(gray)
-            img_merge.paste(gray, image_pos, mask=invert)
+            clipping_path = create_clipping_path_image(doc, page, images[index], (width_merge, height_merge), image_pos, image_extract.size)
+        if image_type == 'mask':
+            clipped_image = create_clipped_image_for_imagemask(image_extract, clipping_path)
+            del clipping_path
+            clipped_image = clipped_image.split()[0]
+            invert = ImageOps.invert(clipped_image)
+            img_merge.paste(clipped_image, image_pos, mask=invert)
+            del clipped_image
+            del invert
         else:
-            img_merge.paste(image_extract_list[index], image_pos, mask=clipping_path)
+            img_merge.paste(image_extract, image_pos, mask=clipping_path)
+            del clipping_path
     img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge)
     img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
+    del img_noimg
 
-    if all(image_type.startswith('mono') for image_type in image_type_list) and config['prefer-mono']:
+    if is_mono and config['prefer-mono']:
         img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
 
     return img_merge
