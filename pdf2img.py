@@ -324,6 +324,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             clipping_path = create_clipping_path_image(doc, page, images[index], (width_merge, height_merge), image_pos, image_extract.size)
         if image_type == 'mask':
             clipped_image = create_clipped_image_for_imagemask(image_extract, clipping_path)
+            del image_extract
             del clipping_path
             clipped_image = clipped_image.split()[0]
             invert = ImageOps.invert(clipped_image)
@@ -332,6 +333,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             del invert
         else:
             img_merge.paste(image_extract, image_pos, mask=clipping_path)
+            del image_extract
             del clipping_path
     img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge)
     img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
