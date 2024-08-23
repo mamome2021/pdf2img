@@ -106,7 +106,6 @@ def render_image(page, zoom, colorspace='GRAY', alpha=True):
     image = image.convert(colorspace + 'A')
     return image
 
-
 def get_image_colorspace(doc, img_xref):
     cs_type, cs = doc.xref_get_key(img_xref, "ColorSpace")
     if doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
@@ -123,7 +122,6 @@ def get_image_colorspace(doc, img_xref):
         return 'RGB'
     else:
         return 'RGB'
-
 
 def extract_image(doc, img_xref, pagenum_str):
     width = int(doc.xref_get_key(img_xref, "Width")[1])
@@ -241,7 +239,7 @@ def create_clipping_path_image(doc, page, image, size, image_pos, image_size):
     ctx.rectangle(0, 0, size[0], size[1])
     ctx.set_source_rgb(1,1,1)
     ctx.fill()
-    clipping_path =  Image.frombuffer('1', size, surface.get_data(), 'raw', '1;R' ,surface.get_stride())
+    clipping_path = Image.frombuffer('1', size, surface.get_data(), 'raw', '1;R' ,surface.get_stride())
     clipping_path = clipping_path.crop((image_pos[0], image_pos[1], image_pos[0] + image_size[0], image_pos[1] + image_size[1]))
     return clipping_path
 
