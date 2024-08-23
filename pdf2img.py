@@ -131,12 +131,17 @@ def extract_image(doc, img_xref, pagenum_str):
     cs_type = doc.xref_get_key(img_xref, "ColorSpace")[0]
     cs = doc.xref_get_key(img_xref, "ColorSpace")[1]
     if doc.xref_get_key(img_xref, "Filter")[1] == '/DCTDecode':
+        if cs_type == 'xref':
+            # Using xref_stream_raw directly produces image with inverted color
+            # JOKER-我的同居小鬼(1) p3
+            pixmap = fitz.Pixmap(doc, img_xref)
+            pixmap = fitz.Pixmap(fitz.csRGB, pixmap)
+            return "pil", Image.frombytes('RGB', (pixmap.width, pixmap.height), pixmap.samples_mv)
         if cs == "/DeviceCMYK":
             # Using xref_stream_raw directly produces image with inverted color
             pixmap = fitz.Pixmap(doc, img_xref)
             return "pil", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples_mv)
-        else:
-            return "jpeg", doc.xref_stream_raw(img_xref)
+        return "jpeg", doc.xref_stream_raw(img_xref)
     elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
         return "mask", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
     elif doc.xref_get_key(img_xref, "BitsPerComponent")[1] == '1':
