@@ -91,7 +91,7 @@ def find_largest_image(images):
             index = i
     return index
 
-def render_image(page, zoom, colorspace='GRAY', alpha=True):
+def render_image(page, zoom, colorspace, alpha):
     if alpha == True and colorspace == 'CMYK':
         #CMYK with alpha channel is not supported by pillow
         colorspace = 'RGB'
@@ -337,7 +337,7 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             img_merge.paste(image_extract, image_pos, mask=clipping_path)
             del image_extract
             del clipping_path
-    img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge)
+    img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge, alpha=True)
     img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
     del img_noimg
 
@@ -374,7 +374,7 @@ def convert_page(config, pagenum, output_dir):
                 save_extracted_image(config, doc, page, image, output_dir)
             return 1
         if not images:
-            image = render_image(page, 600 / 72, alpha=False)
+            image = render_image(page, 600 / 72, colorspace='GRAY', alpha=False)
         else:
             global doc_noimg
             page_noimg = doc_noimg[pagenum]
