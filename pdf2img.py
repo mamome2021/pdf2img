@@ -437,6 +437,7 @@ def gui(config):
         convert_thread()
         button_convert.config(state='normal')
         button_stop.config(state='disabled')
+        root.title('pdf2img')
 
     def convert_thread():
         file = pdf_file.get('1.0' ,'end-1c')
@@ -462,12 +463,15 @@ def gui(config):
         config['save-png'] = save_png.get()
         config['save-tiff'] = save_tiff.get('1.0' ,'end-1c')
         failed_page = []
+        finished_page_count = 0
         # Use ProcessPoolExecutor instead of multiprocessing.Pool
         # to detect error of process killed due to low memory
         with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init,
                                  initargs=(file,)) as pool:
             try:
                 for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir), repeat(event))):
+                    finished_page_count += 1
+                    root.title(f'pdf2img ({finished_page_count}/{page_count})')
                     if result != 1:
                         failed_page.append(str(idx + 1))
             except BrokenProcessPool:
