@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
+import tkinter
+import tkinter.filedialog
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from io import BytesIO
 from itertools import repeat
 import math
 from multiprocessing import freeze_support
 import os
 import sys
+from tkinter import *
+from tkinter import messagebox
+from tkinter import ttk
 import traceback
 
 import cairo
@@ -367,6 +373,9 @@ def save_pil_image(config, image, output_name):
 def convert_page(config, pagenum, output_dir):
     try:
         global doc
+        if not doc:
+            # Failed in convert_page_init()
+            return 0
         page = doc[pagenum]
         images = page.get_images(full=True)
         if config['only-extract']:
@@ -399,13 +408,111 @@ def convert_page_init(file):
         doc_noimg = fitz.open('pdf', doc_noimg.tobytes(garbage=1))
     except Exception:
         print(traceback.format_exc())
+        del doc
+
+def gui(config):
+    def open_pdf_file():
+        name = tkinter.filedialog.askopenfilename()
+        if name:
+            pdf_file.delete('1.0', 'end')
+            pdf_file.insert('end', name)
+
+    def open_output_dir():
+        name = tkinter.filedialog.askdirectory()
+        if name:
+            output_dir_text.delete('1.0', 'end')
+            output_dir_text.insert('end', name)
+
+    def convert():
+        file = pdf_file.get('1.0' ,'end-1c')
+        if not file:
+            return
+        try:
+            with fitz.open(file) as doc:
+                page_count = doc.page_count
+        except fitz.FileNotFoundError:
+            messagebox.showinfo(message='找不到檔案')
+            return
+        output_dir = output_dir_text.get('1.0', 'end-1c')
+        if not output_dir:
+            output_dir = file + "-img"
+        os.makedirs(output_dir, exist_ok=True)
+        config['processes'] = processes.get()
+        config['only-extract'] = only_extract.get()
+        config['render-image'] = render_image.get()
+        config['no-crop'] = no_crop.get()
+        config['extract-jpeg'] = extract_jpeg.get()
+        config['prefer-mono'] = prefer_mono.get()
+        config['save-jxl'] = save_jxl.get()
+        config['save-png'] = save_png.get()
+        config['save-tiff'] = save_tiff.get('1.0' ,'end-1c')
+        failed_page = []
+        # Use ProcessPoolExecutor instead of multiprocessing.Pool
+        # to detect error of process killed due to low memory
+        with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init,
+                                 initargs=(file,)) as pool:
+            try:
+                for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir))):
+                    if result != 1:
+                        failed_page.append(str(idx + 1))
+            except BrokenProcessPool:
+                messagebox.showinfo(message='BrokenProcessPool: 可能記憶體不足')
+                return
+
+        message = '轉換完成'
+        if failed_page:
+            message += f"，第{', '.join(failed_page)}頁轉換失敗"
+        messagebox.showinfo(message=message)
+
+    root = Tk()
+    root.title('pdf2img')
+
+    processes = IntVar(value=config['processes'])
+    only_extract = BooleanVar(value=config['only-extract'])
+    render_image = BooleanVar(value=config['render-image'])
+    no_crop = BooleanVar(value=config['no-crop'])
+    extract_jpeg = BooleanVar(value=config['extract-jpeg'])
+    prefer_mono = BooleanVar(value=config['prefer-mono'])
+    save_jxl = BooleanVar(value=config['save-jxl'])
+    save_png = BooleanVar(value=config['save-png'])
+
+
+    ttk.Button(root, text="要轉換的PDF檔", command=open_pdf_file).grid(column=0, row=0)
+    pdf_file = Text(root, height=1)
+    pdf_file.grid(column=1, row=0)
+    ttk.Button(root, text="輸出資料夾", command=open_output_dir).grid(column=0, row=1)
+    output_dir_text = Text(root, height=1)
+    output_dir_text.grid(column=1, row=1)
+    ttk.Label(root, text='進程數（請注意記憶體是否足夠）').grid(column=0, row=2)
+    ttk.Spinbox(from_=1, to=8, textvariable=processes).grid(column=1, row=2)
+    ttk.Label(root, text='只提取原圖，不疊加渲染圖').grid(column=0, row=3)
+    ttk.Checkbutton(root,variable=only_extract).grid(column=1, row=3)
+    ttk.Label(root, text='如果無法完美提取，則使用渲染方式產生圖片').grid(column=0, row=4)
+    ttk.Checkbutton(root,variable=render_image).grid(column=1, row=4)
+    ttk.Label(root, text='不裁切超出pdf頁面的原圖，並忽略clipping path').grid(column=0, row=5)
+    ttk.Checkbutton(root,variable=no_crop).grid(column=1, row=5)
+    ttk.Label(root, text='若圖片為jpeg，也提取出未疊加渲染圖的原圖').grid(column=0, row=6)
+    ttk.Checkbutton(root,variable=extract_jpeg).grid(column=1, row=6)
+    ttk.Label(root, text='若原圖為位圖，以位圖格式儲存').grid(column=0, row=7)
+    ttk.Checkbutton(root,variable=prefer_mono).grid(column=1, row=7)
+    ttk.Label(root, text='以JPEG XL格式儲存').grid(column=0, row=8)
+    ttk.Checkbutton(root,variable=save_jxl).grid(column=1, row=8)
+    ttk.Label(root, text='以png格式儲存').grid(column=0, row=9)
+    ttk.Checkbutton(root,variable=save_png).grid(column=1, row=9)
+    ttk.Label(root, text='以tiff格式儲存，並指定壓縮方式').grid(column=0, row=10)
+    save_tiff = Text(root, height=1)
+    save_tiff.grid(column=1, row=10)
+    save_tiff.insert('end-1c',config['save-tiff'])
+    button_convert = ttk.Button(root, text="轉換", command=convert)
+    button_convert.grid(column=1, row=11)
+    root.mainloop()
 
 def main():
-    if len(sys.argv) == 1:
-        print('請選擇pdf檔')
-        sys.exit(0)
-
     config = read_config()
+
+    if len(sys.argv) == 1:
+        gui(config)
+        sys.exit(0)
 
     for file in sys.argv[1:]:
         if 'PDF2IMG_OUTPUT' in os.environ:
