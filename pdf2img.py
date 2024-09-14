@@ -4,9 +4,10 @@ from concurrent.futures.process import BrokenProcessPool
 from io import BytesIO
 from itertools import repeat
 import math
-from multiprocessing import freeze_support
+import multiprocessing
 import os
 import sys
+import threading
 import tkinter
 import tkinter.filedialog
 import tkinter.messagebox
@@ -369,8 +370,10 @@ def save_pil_image(config, image, output_name):
             image = image.convert('RGB')
         image.save(f"{output_name}.webp", lossless=True)
 
-def convert_page(config, pagenum, output_dir):
+def convert_page(config, pagenum, output_dir, event):
     try:
+        if event.is_set():
+            return 1
         global doc
         if not doc:
             # Failed in convert_page_init()
@@ -423,6 +426,10 @@ def gui(config):
             output_dir_text.insert('end', name)
 
     def convert():
+        thread = threading.Thread(target=convert_thread)
+        thread.start()
+
+    def convert_thread():
         file = pdf_file.get('1.0' ,'end-1c')
         if not file:
             return
@@ -451,18 +458,21 @@ def gui(config):
         with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init,
                                  initargs=(file,)) as pool:
             try:
-                for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir))):
+                for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir), repeat(event))):
                     if result != 1:
                         failed_page.append(str(idx + 1))
             except BrokenProcessPool:
                 tkinter.messagebox.showinfo(message='BrokenProcessPool: 可能記憶體不足')
                 return
 
+        event.clear()
         message = '轉換完成'
         if failed_page:
             message += f"，第{', '.join(failed_page)}頁轉換失敗"
         tkinter.messagebox.showinfo(message=message)
 
+    manager = multiprocessing.Manager()
+    event = manager.Event()
     root = tkinter.Tk()
     root.title('pdf2img')
 
@@ -503,7 +513,9 @@ def gui(config):
     save_tiff.grid(column=1, row=10)
     save_tiff.insert('end-1c',config['save-tiff'])
     button_convert = ttk.Button(root, text="轉換", command=convert)
-    button_convert.grid(column=1, row=11)
+    button_convert.grid(column=0, row=11)
+    button_stop = ttk.Button(root, text="停止", command=event.set)
+    button_stop.grid(column=1, row=11)
     root.mainloop()
 
 def main():
@@ -521,13 +533,16 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
         with fitz.open(file) as doc:
             page_count = doc.page_count
+
+        manager = multiprocessing.Manager()
+        event = manager.Event()
         # Use ProcessPoolExecutor instead of multiprocessing.Pool
         # to detect error of process killed due to low memory
         with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
-            for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir))):
+            for idx, result in enumerate(pool.map(convert_page, repeat(config), range(page_count), repeat(output_dir), repeat(event))):
                 if result != 1:
                     print(f'第{idx + 1}頁轉換失敗')
 
 if __name__ == '__main__':
-    freeze_support()
+    multiprocessing.freeze_support()
     main()
