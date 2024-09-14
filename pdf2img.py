@@ -426,8 +426,17 @@ def gui(config):
             output_dir_text.insert('end', name)
 
     def convert():
-        thread = threading.Thread(target=convert_thread)
+        button_convert.config(state='disabled')
+        button_stop.config(state='normal')
+        # Create thread to prevent blocking UI
+        thread = threading.Thread(target=convert_thread_wrapper)
         thread.start()
+
+    def convert_thread_wrapper():
+        # Create wrapper for updating UI after conversion finishes
+        convert_thread()
+        button_convert.config(state='normal')
+        button_stop.config(state='disabled')
 
     def convert_thread():
         file = pdf_file.get('1.0' ,'end-1c')
@@ -517,7 +526,7 @@ def gui(config):
     save_tiff.insert('end-1c',config['save-tiff'])
     button_convert = ttk.Button(frame, text="轉換", command=convert)
     button_convert.grid(sticky='w', column=0, row=11, pady=(10, 0))
-    button_stop = ttk.Button(frame, text="停止", command=event.set)
+    button_stop = ttk.Button(frame, text="停止", command=event.set, state='disabled')
     button_stop.grid(sticky='w', column=1, row=11, pady=(10, 0))
     root.mainloop()
 
