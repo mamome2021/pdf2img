@@ -429,8 +429,8 @@ def gui(config):
         try:
             with fitz.open(file) as doc:
                 page_count = doc.page_count
-        except fitz.FileNotFoundError:
-            tkinter.messagebox.showinfo(message='找不到檔案')
+        except:
+            tkinter.messagebox.showinfo(message='無法開啟檔案')
             return
         output_dir = output_dir_text.get('1.0', 'end-1c')
         if not output_dir:
