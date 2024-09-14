@@ -465,16 +465,20 @@ def gui(config):
                 tkinter.messagebox.showinfo(message='BrokenProcessPool: 可能記憶體不足')
                 return
 
-        event.clear()
-        message = '轉換完成'
-        if failed_page:
-            message += f"，第{', '.join(failed_page)}頁轉換失敗"
-        tkinter.messagebox.showinfo(message=message)
+        if event.is_set():
+            event.clear()
+        else:
+            message = '轉換完成'
+            if failed_page:
+                message += f"，第{', '.join(failed_page)}頁轉換失敗"
+            tkinter.messagebox.showinfo(message=message)
 
     manager = multiprocessing.Manager()
     event = manager.Event()
     root = tkinter.Tk()
     root.title('pdf2img')
+    frame = tkinter.Frame(root)
+    frame.pack(padx=10, pady=10)
 
     processes = tkinter.IntVar(value=config['processes'])
     only_extract = tkinter.BooleanVar(value=config['only-extract'])
@@ -485,37 +489,36 @@ def gui(config):
     save_jxl = tkinter.BooleanVar(value=config['save-jxl'])
     save_png = tkinter.BooleanVar(value=config['save-png'])
 
-
-    ttk.Button(root, text="要轉換的PDF檔", command=open_pdf_file).grid(column=0, row=0)
-    pdf_file = tkinter.Text(root, height=1)
-    pdf_file.grid(column=1, row=0)
-    ttk.Button(root, text="輸出資料夾", command=open_output_dir).grid(column=0, row=1)
-    output_dir_text = tkinter.Text(root, height=1)
-    output_dir_text.grid(column=1, row=1)
-    ttk.Label(root, text='進程數（請注意記憶體是否足夠）').grid(column=0, row=2)
-    ttk.Spinbox(from_=1, to=8, textvariable=processes).grid(column=1, row=2)
-    ttk.Label(root, text='只提取原圖，不疊加渲染圖').grid(column=0, row=3)
-    ttk.Checkbutton(root,variable=only_extract).grid(column=1, row=3)
-    ttk.Label(root, text='如果無法完美提取，則使用渲染方式產生圖片').grid(column=0, row=4)
-    ttk.Checkbutton(root,variable=render_image).grid(column=1, row=4)
-    ttk.Label(root, text='不裁切超出pdf頁面的原圖，並忽略clipping path').grid(column=0, row=5)
-    ttk.Checkbutton(root,variable=no_crop).grid(column=1, row=5)
-    ttk.Label(root, text='若圖片為jpeg，也提取出未疊加渲染圖的原圖').grid(column=0, row=6)
-    ttk.Checkbutton(root,variable=extract_jpeg).grid(column=1, row=6)
-    ttk.Label(root, text='若原圖為位圖，以位圖格式儲存').grid(column=0, row=7)
-    ttk.Checkbutton(root,variable=prefer_mono).grid(column=1, row=7)
-    ttk.Label(root, text='以JPEG XL格式儲存').grid(column=0, row=8)
-    ttk.Checkbutton(root,variable=save_jxl).grid(column=1, row=8)
-    ttk.Label(root, text='以png格式儲存').grid(column=0, row=9)
-    ttk.Checkbutton(root,variable=save_png).grid(column=1, row=9)
-    ttk.Label(root, text='以tiff格式儲存，並指定壓縮方式').grid(column=0, row=10)
-    save_tiff = tkinter.Text(root, height=1)
-    save_tiff.grid(column=1, row=10)
+    ttk.Button(frame, text="要轉換的PDF檔", command=open_pdf_file).grid(sticky='w', column=0, row=0)
+    pdf_file = tkinter.Text(frame, height=1)
+    pdf_file.grid(sticky='w', column=1, row=0)
+    ttk.Button(frame, text="輸出資料夾", command=open_output_dir).grid(sticky='w', column=0, row=1)
+    output_dir_text = tkinter.Text(frame, height=1)
+    output_dir_text.grid(sticky='w', column=1, row=1)
+    ttk.Label(frame, text='進程數（請注意記憶體是否足夠）').grid(sticky='w', column=0, row=2)
+    ttk.Spinbox(frame, from_=1, to=8, textvariable=processes).grid(sticky='w', column=1, row=2)
+    ttk.Label(frame, text='只提取原圖，不疊加渲染圖').grid(sticky='w', column=0, row=3)
+    ttk.Checkbutton(frame,variable=only_extract).grid(sticky='w', column=1, row=3)
+    ttk.Label(frame, text='如果無法完美提取，則使用渲染方式產生圖片').grid(sticky='w', column=0, row=4)
+    ttk.Checkbutton(frame,variable=render_image).grid(sticky='w', column=1, row=4)
+    ttk.Label(frame, text='不裁切超出pdf頁面的原圖，並忽略clipping path').grid(sticky='w', column=0, row=5)
+    ttk.Checkbutton(frame,variable=no_crop).grid(sticky='w', column=1, row=5)
+    ttk.Label(frame, text='若圖片為jpeg，也提取出未疊加渲染圖的原圖').grid(sticky='w', column=0, row=6)
+    ttk.Checkbutton(frame,variable=extract_jpeg).grid(sticky='w', column=1, row=6)
+    ttk.Label(frame, text='若原圖為位圖，以位圖格式儲存').grid(sticky='w', column=0, row=7)
+    ttk.Checkbutton(frame,variable=prefer_mono).grid(sticky='w', column=1, row=7)
+    ttk.Label(frame, text='以JPEG XL格式儲存').grid(sticky='w', column=0, row=8)
+    ttk.Checkbutton(frame,variable=save_jxl).grid(sticky='w', column=1, row=8)
+    ttk.Label(frame, text='以png格式儲存').grid(sticky='w', column=0, row=9)
+    ttk.Checkbutton(frame,variable=save_png).grid(sticky='w', column=1, row=9)
+    ttk.Label(frame, text='以tiff格式儲存，並指定壓縮方式').grid(sticky='w', column=0, row=10)
+    save_tiff = tkinter.Text(frame, height=1)
+    save_tiff.grid(sticky='w', column=1, row=10)
     save_tiff.insert('end-1c',config['save-tiff'])
-    button_convert = ttk.Button(root, text="轉換", command=convert)
-    button_convert.grid(column=0, row=11)
-    button_stop = ttk.Button(root, text="停止", command=event.set)
-    button_stop.grid(column=1, row=11)
+    button_convert = ttk.Button(frame, text="轉換", command=convert)
+    button_convert.grid(sticky='w', column=0, row=11, pady=(10, 0))
+    button_stop = ttk.Button(frame, text="停止", command=event.set)
+    button_stop.grid(sticky='w', column=1, row=11, pady=(10, 0))
     root.mainloop()
 
 def main():
