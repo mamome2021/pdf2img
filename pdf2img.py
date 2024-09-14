@@ -509,7 +509,7 @@ def gui(config):
     output_dir_text = tkinter.Text(frame, height=1)
     output_dir_text.grid(sticky='w', column=1, row=1)
     ttk.Label(frame, text='進程數（請注意記憶體是否足夠）').grid(sticky='w', column=0, row=2)
-    ttk.Spinbox(frame, from_=1, to=8, textvariable=processes).grid(sticky='w', column=1, row=2)
+    ttk.Spinbox(frame, from_=1, to=99, textvariable=processes).grid(sticky='w', column=1, row=2)
     ttk.Label(frame, text='只提取原圖，不疊加渲染圖').grid(sticky='w', column=0, row=3)
     ttk.Checkbutton(frame,variable=only_extract).grid(sticky='w', column=1, row=3)
     ttk.Label(frame, text='如果無法完美提取，則使用渲染方式產生圖片').grid(sticky='w', column=0, row=4)
