@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import tkinter
-import tkinter.filedialog
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from io import BytesIO
@@ -9,8 +7,9 @@ import math
 from multiprocessing import freeze_support
 import os
 import sys
-from tkinter import *
-from tkinter import messagebox
+import tkinter
+import tkinter.filedialog
+import tkinter.messagebox
 from tkinter import ttk
 import traceback
 
@@ -431,7 +430,7 @@ def gui(config):
             with fitz.open(file) as doc:
                 page_count = doc.page_count
         except fitz.FileNotFoundError:
-            messagebox.showinfo(message='找不到檔案')
+            tkinter.messagebox.showinfo(message='找不到檔案')
             return
         output_dir = output_dir_text.get('1.0', 'end-1c')
         if not output_dir:
@@ -456,32 +455,32 @@ def gui(config):
                     if result != 1:
                         failed_page.append(str(idx + 1))
             except BrokenProcessPool:
-                messagebox.showinfo(message='BrokenProcessPool: 可能記憶體不足')
+                tkinter.messagebox.showinfo(message='BrokenProcessPool: 可能記憶體不足')
                 return
 
         message = '轉換完成'
         if failed_page:
             message += f"，第{', '.join(failed_page)}頁轉換失敗"
-        messagebox.showinfo(message=message)
+        tkinter.messagebox.showinfo(message=message)
 
-    root = Tk()
+    root = tkinter.Tk()
     root.title('pdf2img')
 
-    processes = IntVar(value=config['processes'])
-    only_extract = BooleanVar(value=config['only-extract'])
-    render_image = BooleanVar(value=config['render-image'])
-    no_crop = BooleanVar(value=config['no-crop'])
-    extract_jpeg = BooleanVar(value=config['extract-jpeg'])
-    prefer_mono = BooleanVar(value=config['prefer-mono'])
-    save_jxl = BooleanVar(value=config['save-jxl'])
-    save_png = BooleanVar(value=config['save-png'])
+    processes = tkinter.IntVar(value=config['processes'])
+    only_extract = tkinter.BooleanVar(value=config['only-extract'])
+    render_image = tkinter.BooleanVar(value=config['render-image'])
+    no_crop = tkinter.BooleanVar(value=config['no-crop'])
+    extract_jpeg = tkinter.BooleanVar(value=config['extract-jpeg'])
+    prefer_mono = tkinter.BooleanVar(value=config['prefer-mono'])
+    save_jxl = tkinter.BooleanVar(value=config['save-jxl'])
+    save_png = tkinter.BooleanVar(value=config['save-png'])
 
 
     ttk.Button(root, text="要轉換的PDF檔", command=open_pdf_file).grid(column=0, row=0)
-    pdf_file = Text(root, height=1)
+    pdf_file = tkinter.Text(root, height=1)
     pdf_file.grid(column=1, row=0)
     ttk.Button(root, text="輸出資料夾", command=open_output_dir).grid(column=0, row=1)
-    output_dir_text = Text(root, height=1)
+    output_dir_text = tkinter.Text(root, height=1)
     output_dir_text.grid(column=1, row=1)
     ttk.Label(root, text='進程數（請注意記憶體是否足夠）').grid(column=0, row=2)
     ttk.Spinbox(from_=1, to=8, textvariable=processes).grid(column=1, row=2)
@@ -500,7 +499,7 @@ def gui(config):
     ttk.Label(root, text='以png格式儲存').grid(column=0, row=9)
     ttk.Checkbutton(root,variable=save_png).grid(column=1, row=9)
     ttk.Label(root, text='以tiff格式儲存，並指定壓縮方式').grid(column=0, row=10)
-    save_tiff = Text(root, height=1)
+    save_tiff = tkinter.Text(root, height=1)
     save_tiff.grid(column=1, row=10)
     save_tiff.insert('end-1c',config['save-tiff'])
     button_convert = ttk.Button(root, text="轉換", command=convert)
