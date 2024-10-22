@@ -120,7 +120,7 @@ def get_image_colorspace(doc, img_xref):
         return '1'
     elif cs_type == 'xref':
         return 'RGB'
-    elif cs == "/DeviceCMYK":
+    elif cs == "/DeviceCMYK" and doc.xref_get_key(img_xref, "Filter")[1] != '/DCTDecode':
         return 'CMYK'
     elif cs == "/DeviceGray":
         return 'L'
@@ -144,7 +144,9 @@ def extract_image(doc, img_xref, pagenum_str):
         if cs == "/DeviceCMYK":
             # Using xref_stream_raw directly produces image with inverted color
             pixmap = fitz.Pixmap(doc, img_xref)
-            return "pil", Image.frombytes('CMYK', (pixmap.width, pixmap.height), pixmap.samples_mv)
+            # Use fitz.Pixmap to convert to RGB, so color is correct
+            pixmap = fitz.Pixmap(fitz.csRGB, pixmap)
+            return "pil", Image.frombytes('RGB', (pixmap.width, pixmap.height), pixmap.samples_mv)
         return "jpeg", doc.xref_stream_raw(img_xref)
     elif doc.xref_get_key(img_xref,"ImageMask")[1] == 'true':
         return "mask", Image.frombytes('1', (width, height), doc.xref_stream(img_xref))
