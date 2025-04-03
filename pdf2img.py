@@ -429,6 +429,7 @@ def gui(config):
 
     def convert():
         button_convert.config(state='disabled')
+        button_convert_multiple.config(state='disabled')
         button_stop.config(state='normal')
         # Create thread to prevent blocking UI
         thread = threading.Thread(target=convert_thread_wrapper)
@@ -436,13 +437,36 @@ def gui(config):
 
     def convert_thread_wrapper():
         # Create wrapper for updating UI after conversion finishes
-        convert_thread()
+        file = pdf_file.get('1.0' ,'end-1c')
+        convert_thread(file)
+        if event.is_set():
+            event.clear()
         button_convert.config(state='normal')
+        button_convert_multiple.config(state='normal')
         button_stop.config(state='disabled')
         root.title('pdf2img')
 
-    def convert_thread():
-        file = pdf_file.get('1.0' ,'end-1c')
+    def convert_multiple():
+        filenames = tkinter.filedialog.askopenfilenames()
+        button_convert.config(state='disabled')
+        button_convert_multiple.config(state='disabled')
+        button_stop.config(state='normal')
+        # Create thread to prevent blocking UI
+        thread = threading.Thread(target=convert_multiple_thread_wrapper, args=(filenames,))
+        thread.start()
+
+    def convert_multiple_thread_wrapper(filenames):
+        # Create wrapper for updating UI after conversion finishes
+        for file in filenames:
+            convert_thread(file)
+        if event.is_set():
+            event.clear()
+        button_convert.config(state='normal')
+        button_convert_multiple.config(state='normal')
+        button_stop.config(state='disabled')
+        root.title('pdf2img')
+
+    def convert_thread(file):
         if not file:
             return
         try:
@@ -480,12 +504,8 @@ def gui(config):
                 tkinter.messagebox.showinfo(message='BrokenProcessPool: 可能記憶體不足')
                 return
 
-        if event.is_set():
-            event.clear()
-        else:
-            message = '轉換完成'
-            if failed_page:
-                message += f"，第{', '.join(failed_page)}頁轉換失敗"
+        if not event.is_set() and failed_page:
+            message = f"第{', '.join(failed_page)}頁轉換失敗"
             tkinter.messagebox.showinfo(message=message)
 
     manager = multiprocessing.Manager()
@@ -530,8 +550,12 @@ def gui(config):
     save_tiff = tkinter.Text(frame, height=1)
     save_tiff.grid(sticky='w', column=1, row=10)
     save_tiff.insert('end-1c',config['save-tiff'])
-    button_convert = ttk.Button(frame, text="轉換", command=convert)
-    button_convert.grid(sticky='w', column=0, row=11, pady=(10, 0))
+    frame2 = tkinter.Frame(frame)
+    frame2.grid(sticky='w', column=0, row=11, pady=(10, 0))
+    button_convert = ttk.Button(frame2, text="轉換", command=convert)
+    button_convert.grid(sticky='w', column=0, row=0, pady=(10, 0))
+    button_convert_multiple = ttk.Button(frame2, text="多檔轉換", command=convert_multiple)
+    button_convert_multiple.grid(sticky='w', column=1, row=0, pady=(10, 0), padx=10)
     button_stop = ttk.Button(frame, text="停止", command=event.set, state='disabled')
     button_stop.grid(sticky='w', column=1, row=11, pady=(10, 0))
     root.mainloop()
