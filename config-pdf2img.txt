@@ -26,6 +26,3 @@ original-only
 
 #以png格式儲存
 #save-png
-
-#以tiff格式儲存，並指定壓縮方式，如果不支持圖片色彩空間將無法儲存。參考https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#tiff-saving
-#save-tiff tiff_lzw

@@ -31,7 +31,7 @@ def read_config():
               'prefer-mono': False,
               'save-jxl': False,
               'save-png': False,
-              'save-tiff': ''}
+              }
     try:
         if 'PDF2IMG_CONFIG' in os.environ:
             config_filename = os.environ['PDF2IMG_CONFIG']
@@ -64,8 +64,6 @@ def read_config():
                 config['save-jxl'] = True
             elif option[0] == 'save-png':
                 config['save-png'] = True
-            elif option[0] == 'save-tiff':
-                config['save-tiff'] = option[1]
     except FileNotFoundError:
         print('警告：找不到設定檔')
     except Exception:
@@ -370,8 +368,6 @@ def save_pil_image(config, image, output_name):
         if image.mode == 'CMYK':
             image = image.convert('RGB')
         image.save(f"{output_name}.jxl", lossless=True)
-    elif config['save-tiff']:
-        image.save(f"{output_name}.tiff", compression=config['save-tiff'])
     else:
         if image.mode == 'CMYK':
             image = image.convert('RGB')
@@ -492,7 +488,6 @@ def gui(config):
         config['prefer-mono'] = prefer_mono.get()
         config['save-jxl'] = save_jxl.get()
         config['save-png'] = save_png.get()
-        config['save-tiff'] = save_tiff.get('1.0' ,'end-1c')
         failed_page = []
         finished_page_count = 0
         # Use ProcessPoolExecutor instead of multiprocessing.Pool
@@ -551,10 +546,6 @@ def gui(config):
     ttk.Checkbutton(frame,variable=save_jxl).grid(sticky='w', column=1, row=8)
     ttk.Label(frame, text='以png格式儲存').grid(sticky='w', column=0, row=9)
     ttk.Checkbutton(frame,variable=save_png).grid(sticky='w', column=1, row=9)
-    ttk.Label(frame, text='以tiff格式儲存，並指定壓縮方式').grid(sticky='w', column=0, row=10)
-    save_tiff = tkinter.Text(frame, height=1)
-    save_tiff.grid(sticky='w', column=1, row=10)
-    save_tiff.insert('end-1c',config['save-tiff'])
     frame2 = tkinter.Frame(frame)
     frame2.grid(sticky='w', column=0, row=11, pady=(10, 0))
     button_convert = ttk.Button(frame2, text="轉換", command=convert)
