@@ -25,6 +25,7 @@ def read_config():
               'only-extract': False,
               'render-image': False,
               'no-crop': False,
+              'original-only': False,
               'extract-jpeg': False,
               'prefer-mono': False,
               'save-jxl': False,
@@ -52,6 +53,8 @@ def read_config():
                 config['render-image'] = True
             elif option[0] == 'no-crop':
                 config['no-crop'] = True
+            elif option[0] == 'original-only':
+                config['original-only'] = True
             elif option[0] == 'extract-jpeg':
                 config['extract-jpeg'] = True
             elif option[0] == 'prefer-mono':
@@ -345,9 +348,10 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
             img_merge.paste(image_extract, image_pos, mask=clipping_path)
             del image_extract
             del clipping_path
-    img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge, alpha=True)
-    img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
-    del img_noimg
+    if not config['original-only']:
+        img_noimg = render_image(page_noimg, zoom, colorspace=mode_merge, alpha=True)
+        img_merge.paste(img_noimg, (int(-rect_merge[0] * zoom), int(-rect_merge[1] * zoom)), img_noimg)
+        del img_noimg
 
     if is_mono and config['prefer-mono']:
         img_merge = img_merge.point(lambda i: i>127 and 255, mode='1')
