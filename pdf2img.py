@@ -6,6 +6,7 @@ from itertools import repeat
 import math
 import multiprocessing
 import os
+import signal
 import sys
 import threading
 import tkinter
@@ -564,6 +565,10 @@ def gui(config):
     button_stop.grid(sticky='w', column=1, row=11, pady=(10, 0))
     root.mainloop()
 
+def interrupt(signum, frame, event):
+    print('收到中斷訊號，將結束程式')
+    event.set()
+
 def main():
     config = read_config()
 
@@ -571,7 +576,13 @@ def main():
         gui(config)
         sys.exit(0)
 
+    manager = multiprocessing.Manager()
+    event = manager.Event()
+    signal.signal(signal.SIGINT, lambda signum, frame: interrupt(signum, frame, event))
+
     for file in sys.argv[1:]:
+        if event.is_set():
+            break
         if 'PDF2IMG_OUTPUT' in os.environ:
             output_dir = os.path.join(os.environ['PDF2IMG_OUTPUT'], file + "-img")
         else:
@@ -580,8 +591,6 @@ def main():
         with fitz.open(file) as doc:
             page_count = doc.page_count
 
-        manager = multiprocessing.Manager()
-        event = manager.Event()
         # Use ProcessPoolExecutor instead of multiprocessing.Pool
         # to detect error of process killed due to low memory
         with ProcessPoolExecutor(max_workers=config['processes'], initializer=convert_page_init, initargs=(file,)) as pool:
