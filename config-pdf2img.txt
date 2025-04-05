@@ -7,7 +7,7 @@
 #only-extract
 
 #只疊加原圖，不疊加渲染圖
-original-only
+#original-only
 
 #如果無法完美提取，則使用渲染方式產生圖片
 #render-image
