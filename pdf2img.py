@@ -100,9 +100,6 @@ def find_largest_image(images):
     return index
 
 def render_image(page, zoom, colorspace, alpha):
-    if alpha == True and colorspace == 'CMYK':
-        #CMYK with alpha channel is not supported by pillow
-        colorspace = 'RGB'
     if colorspace == 'L':
         colorspace = 'GRAY'
     pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=colorspace, alpha=alpha)
@@ -122,12 +119,8 @@ def get_image_colorspace(doc, img_xref):
         return '1'
     elif cs_type == 'xref':
         return 'RGB'
-    elif cs == "/DeviceCMYK" and doc.xref_get_key(img_xref, "Filter")[1] != '/DCTDecode':
-        return 'CMYK'
     elif cs == "/DeviceGray":
         return 'L'
-    elif cs == "/DeviceRGB":
-        return 'RGB'
     else:
         return 'RGB'
 
@@ -161,7 +154,10 @@ def extract_image(doc, img_xref, pagenum_str):
         img_data = img_dict["image"]
         return "pil", Image.open(BytesIO(img_data))
     elif cs == "/DeviceCMYK":
-        return "pil", Image.frombytes('CMYK', (width, height), doc.xref_stream(img_xref))
+        pixmap = fitz.Pixmap(doc, img_xref)
+        # Use fitz.Pixmap to convert to RGB, so color is correct
+        pixmap = fitz.Pixmap(fitz.csRGB, pixmap)
+        return "pil", Image.frombytes('RGB', (pixmap.width, pixmap.height), pixmap.samples_mv)
     elif cs == "/DeviceGray":
         return "pil", Image.frombytes('L', (width, height), doc.xref_stream(img_xref))
     elif cs == "/DeviceRGB":
@@ -285,8 +281,6 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
         image_colorspace = get_image_colorspace(doc, img_xref)
         if image_colorspace != '1':
             is_mono = False
-        if mode_merge =='L' and image_colorspace == 'CMYK':
-            mode_merge = 'CMYK'
         if image_colorspace == 'RGB':
             mode_merge = 'RGB'
 
@@ -359,18 +353,12 @@ def generate_image(config, doc, page, page_noimg, images, output_dir):
 
 def save_pil_image(config, image, output_name):
     if config['save-png']:
-        if image.mode == 'CMYK':
-            image = image.convert('RGB')
         image.save(f"{output_name}.png")
     elif config['save-jxl']:
         if image.mode == '1':
             image = image.convert('L')
-        if image.mode == 'CMYK':
-            image = image.convert('RGB')
         image.save(f"{output_name}.jxl", lossless=True)
     else:
-        if image.mode == 'CMYK':
-            image = image.convert('RGB')
         image.save(f"{output_name}.webp", lossless=True)
 
 def convert_page(config, pagenum, output_dir, event):
