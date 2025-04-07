@@ -359,7 +359,11 @@ def save_pil_image(config, image, output_name):
             image = image.convert('L')
         image.save(f"{output_name}.jxl", lossless=True)
     else:
-        image.save(f"{output_name}.webp", lossless=True)
+        if max(image.size) > 16383:
+            print('尺寸過大，改存為png')
+            image.save(f"{output_name}.png")
+        else:
+            image.save(f"{output_name}.webp", lossless=True)
 
 def convert_page(config, pagenum, output_dir, event):
     try:
