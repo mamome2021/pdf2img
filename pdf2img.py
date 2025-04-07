@@ -549,6 +549,8 @@ def interrupt(signum, frame, event):
     event.set()
 
 def main():
+    # Disable DecompressionBombWarning
+    Image.MAX_IMAGE_PIXELS = None
     config = read_config()
 
     if len(sys.argv) == 1:
